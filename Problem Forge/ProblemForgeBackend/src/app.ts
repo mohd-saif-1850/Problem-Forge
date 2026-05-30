@@ -5,9 +5,7 @@ const app = express();
 app.use(express.json());
 
 app.get("/", (req, res) => {
-  res.json({
-    message: "Hello TypeScript"
-  });
+  res.send("Problem Forge is Active");
 });
 
 export default app;
