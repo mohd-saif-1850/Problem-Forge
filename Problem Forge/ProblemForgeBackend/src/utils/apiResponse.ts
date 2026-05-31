@@ -6,8 +6,8 @@ class apiResponse<T> {
 
   constructor(
     statusCode: number,
-    data: T | null = null,
-    message: string = "Success"
+    message: string = "Success",
+    data: T | null = null
   ) {
     this.statusCode = statusCode;
     this.success = statusCode < 400;

@@ -16,8 +16,6 @@ export interface IUser extends Document {
 
   // Verification
   isEmailVerified: boolean;
-  otp?: string;
-  otpExpiry?: Date;
 
   // GitHub
   gitUsername?: string;
@@ -103,16 +101,6 @@ const userSchema = new Schema<IUser>(
     isEmailVerified: {
       type: Boolean,
       default: false,
-    },
-
-    otp: {
-      type: String,
-      default: null,
-    },
-
-    otpExpiry: {
-      type: Date,
-      default: null,
     },
 
     // GitHub
