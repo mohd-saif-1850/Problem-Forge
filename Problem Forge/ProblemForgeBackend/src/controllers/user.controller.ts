@@ -10,6 +10,8 @@ import sendEmail from "saifstack-email";
 import { verifyEmailLayout } from "../emails/verificationEmailLayout";
 import { welcomeEmailLayout } from "../emails/welcomeEmailLayout";
 import apiResponse from "../utils/apiResponse";
+import generateAccessAndRefreshTokens from "../utils/jwt";
+import { AuthenticatedRequest } from "../middlewares/auth.middleware";
 
 const registerUser = async (req : Request, res : Response) => {
     const {email, username, password} = req.body
@@ -144,6 +146,15 @@ const verifyEmail = async (req : Request, res: Response) => {
         `pendingUsername:${user.username}`
     );
 
+    const { accessToken, refreshToken } =
+    await generateAccessAndRefreshTokens(user._id);
+
+    const cookieOptions = {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict" as const,
+    };
+
     await sendEmail({
         api: process.env.MAIL_API_KEY!,
         domainName: (process.env.DOMAIN_NAME)?.toString() || "",
@@ -152,13 +163,46 @@ const verifyEmail = async (req : Request, res: Response) => {
         layout: welcomeEmailLayout(user.username)
     })
 
-    return res.status(200).json(
-        new apiResponse(200,"Welcome! User registered successfully.")
-    )
+    return res
+    .status(200)
+    .cookie("accessToken", accessToken, {
+        ...cookieOptions,
+        maxAge: 15 * 60 * 1000,
+    })
+    .cookie("refreshToken", refreshToken, {
+        ...cookieOptions,
+        maxAge: 14 * 24 * 60 * 60 * 1000,
+    })
+    .json(
+        new apiResponse(
+            200,
+            "Welcome! User registered successfully.",
+            {
+                user: {
+                    _id: user._id,
+                    email: user.email,
+                    username: user.username,
+                },
+            }
+            
+        )
+    );
 }
+
+
+const getCurrentUser = async (
+    req: AuthenticatedRequest,
+    res: Response
+) => {
+    return res.status(200).json({
+        success: true,
+        user: req.user,
+    });
+};
 
 
 export {
     registerUser,
-    verifyEmail
+    verifyEmail,
+    getCurrentUser
 }

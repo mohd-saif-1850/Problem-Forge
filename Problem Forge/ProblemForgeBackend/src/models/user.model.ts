@@ -16,6 +16,7 @@ export interface IUser extends Document {
 
   // Verification
   isEmailVerified: boolean;
+  twoStepVerification: boolean;
 
   // GitHub
   gitUsername?: string;
@@ -24,6 +25,7 @@ export interface IUser extends Document {
   // Security
   passwordResetToken?: string;
   passwordResetExpiry?: Date;
+  refreshToken?: string;
 
   // Game
   totalPoints: number;
@@ -102,6 +104,10 @@ const userSchema = new Schema<IUser>(
       type: Boolean,
       default: false,
     },
+    twoStepVerification: {
+      type: Boolean,
+      default: false
+    },
 
     // GitHub
     gitUsername: {
@@ -125,6 +131,11 @@ const userSchema = new Schema<IUser>(
     passwordResetExpiry: {
       type: Date,
       default: null,
+    },
+
+    refreshToken: {
+      type: String,
+      default: null
     },
 
     // Game
