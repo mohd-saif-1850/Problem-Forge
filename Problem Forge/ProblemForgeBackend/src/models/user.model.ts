@@ -10,6 +10,7 @@ export interface IUser extends Document {
   password?: string;
 
   profilePicture?: string;
+  profilePicturePublicId?: string;
   bio?: string;
 
   subscription: UserSubscription;
@@ -17,6 +18,7 @@ export interface IUser extends Document {
   // Verification
   isEmailVerified: boolean;
   twoStepVerification: boolean;
+  twoStepVerificationChangedAt?: Date;
 
   // GitHub
   gitUsername?: string;
@@ -86,6 +88,10 @@ const userSchema = new Schema<IUser>(
       type: String,
       default: "https://res.cloudinary.com/dlzi244at/image/upload/v1763367677/defaultPersonImage_exseqc.avif",
     },
+    profilePicturePublicId: {
+      type: String,
+      default: null
+    },
 
     bio: {
       type: String,
@@ -108,6 +114,10 @@ const userSchema = new Schema<IUser>(
       type: Boolean,
       default: false
     },
+    twoStepVerificationChangedAt: {
+      type: Date,
+      default: null
+  },
 
     // GitHub
     gitUsername: {

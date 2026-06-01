@@ -1,0 +1,29 @@
+import redis from "../config/redis"
+import { IUser } from "../models/user.model"
+
+const SESSION_TTL =
+    14 * 24 * 60 * 60
+
+const cacheUser = async (
+    user: IUser
+) => {
+    await redis.set(
+        `session:user:${user._id}`,
+        JSON.stringify({
+            _id: user._id,
+            username: user.username,
+            profilePicture: user.profilePicture,
+            totalPoints: user.totalPoints,
+            experiencePoints: user.experiencePoints,
+            followers: user.followers,
+            following: user.following,
+            posts: user.posts,
+            role: user.role,
+            subscription: user.subscription
+        }),
+        "EX",
+        SESSION_TTL
+    )
+}
+
+export default cacheUser
