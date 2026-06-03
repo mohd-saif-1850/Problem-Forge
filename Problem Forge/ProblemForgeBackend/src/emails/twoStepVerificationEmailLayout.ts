@@ -307,7 +307,7 @@ build, and solve problems.
     font-size:12px;
   "
 >
-© 2026 Problem Forge. All rights reserved.
+© ${new Date().getFullYear()} Problem Forge. All rights reserved.
 </p>
 
 </td>

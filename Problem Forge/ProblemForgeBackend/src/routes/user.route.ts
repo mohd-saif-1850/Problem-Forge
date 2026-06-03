@@ -8,7 +8,12 @@ import {
     getCurrentUser,
     toggleTwoStepVerification,
     verifyTwoStepVerificationToggle,
-    changeProfilePicture
+    changeProfilePicture,
+    changeName,
+    changeUsername,
+    changeBio,
+    forgotPassword,
+    resetPassword
 } from "../controllers/user.controller";
 import verifyJWT from "../middlewares/auth.middleware";
 import upload from "../middlewares/multer.middleware";
@@ -26,5 +31,12 @@ router.post("/verify-toggle-two-step-verification",verifyJWT,verifyTwoStepVerifi
 router.get("/me",verifyJWT,getCurrentUser)
 
 router.patch("/change-profile-picture",verifyJWT,upload.single("profilePicture"),changeProfilePicture)
+router.patch("/change-name",verifyJWT, changeName),
+router.patch("/change-username",verifyJWT, changeUsername),
+router.patch("/change-bio",verifyJWT, changeBio)
+
+// Password
+router.post("/forgot-password",forgotPassword),
+router.patch("/reset-password/:token",resetPassword)
 
 export default router;

@@ -1,7 +1,6 @@
-export const toggleTwoStepVerificationLayout = (
-    username: string,
-    code: string,
-    action: "Enable" | "Disable"
+export const forgotPasswordLayout = (
+    username : string,
+    resetLink : string
 ) => {
     return `
 <!DOCTYPE html>
@@ -9,9 +8,7 @@ export const toggleTwoStepVerificationLayout = (
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="color-scheme" content="light dark">
-<meta name="supported-color-schemes" content="light dark">
-<title>${action} Two-Step Verification</title>
+<title>Reset Your Password</title>
 </head>
 
 <body style="
@@ -55,8 +52,8 @@ export const toggleTwoStepVerificationLayout = (
         background:linear-gradient(
             90deg,
             #f59e0b,
-            #f97316,
-            #ef4444
+            #ef4444,
+            #dc2626
         );
     "
 ></td>
@@ -89,13 +86,13 @@ export const toggleTwoStepVerificationLayout = (
         padding:8px 16px;
         border-radius:999px;
         background:#fff7ed;
-        color:#ea580c;
+        color:#c2410c;
         font-size:12px;
         font-weight:700;
         letter-spacing:0.5px;
     "
 >
-ACCOUNT SECURITY
+ACCOUNT RECOVERY
 </div>
 
 <h1
@@ -107,7 +104,7 @@ ACCOUNT SECURITY
         font-weight:800;
     "
 >
-${action} Two-Step Verification
+Reset Your Password
 </h1>
 
 <p
@@ -118,7 +115,7 @@ ${action} Two-Step Verification
         line-height:1.8;
     "
 >
-Confirm this security change using the verification code below.
+Secure your account and get back to building.
 </p>
 
 </td>
@@ -144,16 +141,15 @@ Hello <strong>${username}</strong>,
 
 <p
     style="
-        margin:0 0 28px;
+        margin:0 0 32px;
         color:#4b5563;
         font-size:16px;
         line-height:1.9;
     "
 >
-We received a request to
-<strong>${action.toLowerCase()}</strong>
-two-step verification for your Problem Forge account.
-To continue with this security change, enter the verification code below.
+We received a request to reset the password for your
+Problem Forge account. Click the button below to
+create a new password.
 </p>
 
 <table
@@ -165,29 +161,21 @@ To continue with this security change, enter the verification code below.
 <tr>
 <td align="center">
 
-<div
+<a
+    href="${resetLink}"
     style="
         display:inline-block;
-        padding:18px 28px;
-        border:1px solid #e5e7eb;
-        border-radius:18px;
-        background:#fafafa;
+        padding:16px 34px;
+        background:#111827;
+        color:#ffffff;
+        text-decoration:none;
+        border-radius:14px;
+        font-size:16px;
+        font-weight:700;
     "
 >
-
-<span
-    style="
-        color:#111827;
-        font-size:32px;
-        font-weight:800;
-        font-family:Consolas,Monaco,monospace;
-        letter-spacing:4px;
-    "
->
-${code}
-</span>
-
-</div>
+Reset Password
+</a>
 
 </td>
 </tr>
@@ -206,38 +194,15 @@ ${code}
 <p
     style="
         margin:0;
-        color:#92400e;
+        color:#4b5563;
         font-size:14px;
         line-height:1.8;
     "
 >
-This verification code will remain valid for
-<strong>5 minutes</strong>.
-</p>
-
-</div>
-
-<div
-    style="
-        margin-top:20px;
-        padding:18px;
-        background:#fef2f2;
-        border-left:4px solid #dc2626;
-        border-radius:12px;
-    "
->
-
-<p
-    style="
-        margin:0;
-        color:#7f1d1d;
-        font-size:14px;
-        line-height:1.8;
-    "
->
-If you did not request this change,
-someone may be attempting to modify your account security settings.
-Please secure your account immediately and review your recent account activity.
+This password reset link will remain valid for
+<strong style="color:#111827;">
+10 minutes
+</strong>.
 </p>
 
 </div>
@@ -254,13 +219,117 @@ Please secure your account immediately and review your recent account activity.
 
 <p
     style="
+        margin:0 0 10px;
+        color:#111827;
+        font-size:14px;
+        font-weight:700;
+    "
+>
+Button not working?
+</p>
+
+<p
+    style="
+        margin:0;
+        color:#6b7280;
+        font-size:13px;
+        line-height:1.8;
+        word-break:break-all;
+    "
+>
+${resetLink}
+</p>
+
+</div>
+
+<div
+    style="
+        margin-top:20px;
+        padding:18px;
+        background:#fff7ed;
+        border-left:4px solid #f59e0b;
+        border-radius:12px;
+    "
+>
+
+<p
+    style="
         margin:0;
         color:#4b5563;
         font-size:14px;
         line-height:1.8;
     "
 >
-For your protection, Problem Forge requires verification before enabling or disabling two-step verification.
+<strong style="color:#111827;">
+Password Recovery Notice
+</strong>
+<br><br>
+If you requested this password reset,
+click the button above to continue.
+
+<br><br>
+
+If you did not request a password reset,
+you can safely ignore this email.
+</p>
+
+</div>
+
+<div
+    style="
+        margin-top:20px;
+        padding:18px;
+        background:#fef2f2;
+        border-left:4px solid #ef4444;
+        border-radius:12px;
+    "
+>
+
+<p
+    style="
+        margin:0;
+        color:#4b5563;
+        font-size:14px;
+        line-height:1.8;
+    "
+>
+<strong style="color:#991b1b;">
+Suspicious Activity?
+</strong>
+<br><br>
+If you didn't request this password reset,
+someone may have attempted to access your account.
+We recommend reviewing your account security settings
+and changing your password if necessary.
+</p>
+
+</div>
+
+<div
+    style="
+        margin-top:20px;
+        padding:18px;
+        background:#eff6ff;
+        border-left:4px solid #3b82f6;
+        border-radius:12px;
+    "
+>
+
+<p
+    style="
+        margin:0;
+        color:#4b5563;
+        font-size:14px;
+        line-height:1.8;
+    "
+>
+<strong style="color:#1d4ed8;">
+Security Tip
+</strong>
+<br><br>
+Use a strong password that is unique to Problem Forge.
+Avoid reusing passwords across multiple websites and
+services.
 </p>
 
 </div>
@@ -273,8 +342,8 @@ For your protection, Problem Forge requires verification before enabling or disa
         line-height:1.8;
     "
 >
-If you did not initiate this request, you can safely ignore this email.
-No changes will be made without successful verification.
+Need help? Contact our support team if you continue
+having trouble accessing your account.
 </p>
 
 </td>
@@ -298,7 +367,7 @@ No changes will be made without successful verification.
         font-weight:700;
     "
 >
-Problem Forge Security Center
+Problem Forge
 </p>
 
 <p
@@ -309,7 +378,8 @@ Problem Forge Security Center
         line-height:1.8;
     "
 >
-Keeping developers secure while they learn, build, compete and solve problems.
+A platform where developers learn,
+practice, and master problem solving.
 </p>
 
 <p

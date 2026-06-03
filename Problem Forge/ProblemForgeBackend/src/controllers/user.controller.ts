@@ -16,6 +16,7 @@ import cacheUser from "../utils/cacheUser";
 import crypto from "crypto"
 import { toggleTwoStepVerificationLayout } from "../emails/toggleTwoStepVerificationLayout";
 import uploadProfilePicture from "../services/uploadProfilePicture";
+import { forgotPasswordLayout } from "../emails/forgotPasswordEmailLayout";
 
 const registerUser = async (req : Request, res : Response) => {
     const {email, username, password} = req.body
@@ -729,6 +730,276 @@ const changeProfilePicture = async (
     }
 }
 
+const changeUsername = async (
+    req : AuthenticatedRequest,
+    res : Response
+) => {
+
+    const { username } = req.body
+
+    userValidation.username.parse(username)
+
+    const existingUser = await User.findOne({
+        username
+    })
+
+    if(
+        existingUser &&
+        existingUser._id.toString() !== req.user._id.toString()
+    ){
+        throw new apiError(
+            409,
+            "Username already exists"
+        )
+    }
+
+    const user = await User.findByIdAndUpdate(
+        req.user._id,
+        {
+            username
+        },
+        {
+            new : true
+        }
+    )
+
+    if(!user){
+        throw new apiError(
+            404,
+            "User not found"
+        )
+    }
+
+    await cacheUser(user)
+
+    return res.status(200).json(
+        new apiResponse(
+            200,
+            "Username updated successfully",
+            {
+                username : user.username
+            }
+        )
+    )
+}
+
+const changeName = async (
+    req : AuthenticatedRequest,
+    res : Response
+) => {
+
+    const { name } = req.body
+
+    userValidation.name.parse(name)
+
+    const user = await User.findByIdAndUpdate(
+        req.user._id,
+        {
+            name
+        },
+        {
+            new : true
+        }
+    )
+
+    if(!user){
+        throw new apiError(
+            404,
+            "User not found"
+        )
+    }
+
+    await cacheUser(user)
+
+    return res.status(200).json(
+        new apiResponse(
+            200,
+            "Name updated successfully",
+            {
+                name : user.name
+            }
+        )
+    )
+}
+
+const changeBio = async (
+    req : AuthenticatedRequest,
+    res : Response
+) => {
+
+    const { bio } = req.body
+
+    userValidation.bio.parse(bio)
+
+    const user = await User.findByIdAndUpdate(
+        req.user._id,
+        {
+            bio
+        },
+        {
+            new : true
+        }
+    )
+
+    if(!user){
+        throw new apiError(
+            404,
+            "User not found"
+        )
+    }
+
+    await cacheUser(user)
+
+    return res.status(200).json(
+        new apiResponse(
+            200,
+            "Bio updated successfully",
+            {
+                bio : user.bio
+            }
+        )
+    )
+}
+
+const forgotPassword = async ( req: Request, res: Response) => {
+    const {email, username} = req.body
+
+    if(!email && !username){
+        throw new apiError(404,"Please provide either email or username")
+    }
+
+    const existedUser = await User.findOne({
+        $or:[
+            {email},
+            {username}
+        ]
+    })
+
+    if(!existedUser){
+        throw new apiError(400,"User not found")
+    }
+
+    const requested = await redis.ttl(
+        `password:forgot:${existedUser.email}`
+    )
+
+    if(requested > 0){
+        const ttl = requested;
+
+        const minutes = Math.floor(
+            ttl / 60
+        )
+
+        const seconds = ttl % 60
+
+        throw new apiError(
+            400,
+            `You already requested a password reset email. Please wait ${minutes} minute(s) and ${seconds} second(s).`
+        )
+    }
+
+    const token = crypto.randomBytes(32).toString("hex")
+    const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${token}`
+
+    try {
+        await sendMail({
+            email: existedUser.email || "",
+            subject: "Password reset link",
+            layout: forgotPasswordLayout(existedUser.username,resetLink)
+        })
+        await redis.set(
+            `password:reset:${token}`,
+            existedUser.email || "",
+            "EX",
+            10 * 60
+        )
+        await redis.set(
+            `password:forgot:${existedUser.email}`,"Yes",'EX',600
+        )
+    } catch (error) {
+        throw new apiError(500,"Server failed to send the reset link")
+    }
+
+
+    return res.status(200).json(
+        new apiResponse(200,"Password reset link sent to tour email")
+    )
+}
+
+const resetPassword = async (
+    req : Request,
+    res : Response
+) => {
+
+    const { token} = req.params
+    const { password } = req.body
+
+    userValidation.password.parse(password)
+
+    const email = await redis.get(
+        `password:reset:${token}`
+    )
+
+    if(!email){
+        throw new apiError(
+            400,
+            "Invalid or expired reset link. Please request a new one"
+        )
+    }
+
+    const user = await User.findOne({
+        email
+    })
+
+    if(!user){
+        throw new apiError(
+            404,
+            "User not found"
+        )
+    }
+
+    const hashedPassword = await bcrypt.hash(password,10)
+
+    user.password = hashedPassword
+
+    await user.save()
+
+    await redis.del(
+        `password:reset:${token}`
+    )
+
+    await redis.del(
+        `password:forgot:${email}`
+    )
+
+    await redis.del(
+        `session:user:${user._id}`
+    )
+
+    const cookieOptions = {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict" as const,
+    }
+
+    return res
+        .status(200)
+        .clearCookie(
+            "accessToken",
+            cookieOptions
+        )
+        .clearCookie(
+            "refreshToken",
+            cookieOptions
+        )
+        .json(
+            new apiResponse(
+                200,
+                "Password reset successfully"
+            )
+        )
+}
+
 export {
     registerUser,
     verifyEmail,
@@ -738,5 +1009,10 @@ export {
     logoutUser,
     toggleTwoStepVerification,
     verifyTwoStepVerificationToggle,
-    changeProfilePicture
+    changeProfilePicture,
+    changeName,
+    changeUsername,
+    changeBio,
+    forgotPassword,
+    resetPassword
 }
