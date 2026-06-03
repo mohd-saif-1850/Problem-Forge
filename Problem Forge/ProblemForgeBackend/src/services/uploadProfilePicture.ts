@@ -41,11 +41,6 @@ const uploadProfilePicture = async (
             )
         }
 
-        console.error(
-            "Cloudinary upload error:",
-            error
-        )
-
         throw new apiError(
             500,
             error?.message ||
