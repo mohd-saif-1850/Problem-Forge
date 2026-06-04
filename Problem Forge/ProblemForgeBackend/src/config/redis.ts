@@ -1,7 +1,7 @@
 import Redis from "ioredis";
 import apiError from "../utils/apiError";
 
-const redisUrl = process.env.REDIS_URL;
+const redisUrl = process.env.REDIS_LOCAL_URL;
 
 if (!redisUrl) {
   throw new apiError(
