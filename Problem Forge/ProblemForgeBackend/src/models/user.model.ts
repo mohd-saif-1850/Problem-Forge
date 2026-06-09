@@ -47,6 +47,7 @@ export interface IUser extends Document {
 
   // Compiler
   preferredLanguage?: string;
+  enableProblemTimer: boolean;
 
   // Social
   followers: number;
@@ -208,6 +209,11 @@ const userSchema = new Schema<IUser>(
     preferredLanguage: {
       type: String,
       default: "javascript",
+    },
+
+    enableProblemTimer: {
+      type: Boolean,
+      default: false,
     },
 
     // Social
