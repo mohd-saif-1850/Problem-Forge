@@ -21,7 +21,15 @@ const cacheUser = async (
             following: user.following,
             posts: user.posts,
             role: user.role,
-            subscription: user.subscription
+            subscription: user.subscription,
+
+            //extra
+            preferredLanguage: user.preferredLanguage,
+            timer: user.enableProblemTimer,
+
+            // Github
+            githubUsername: user.gitUsername || "",
+
         }),
         "EX",
         SESSION_TTL

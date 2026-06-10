@@ -1000,6 +1000,51 @@ const resetPassword = async (
         )
 }
 
+const toggleTimer = async (req: AuthenticatedRequest, res: Response) => {
+    const userId = req.user._id;
+
+    const user = await User.findById(userId)
+
+    if(!user){
+        throw new apiError(404,"User not found");
+    }
+
+    user.enableProblemTimer = !user.enableProblemTimer;
+    await user.save();
+
+    await cacheUser(user)
+
+    return res.status(200).json(
+        new apiResponse(200,"Timer chages successfully")
+    )
+}
+
+const preferredLanguage = async (req: AuthenticatedRequest, res: Response) => {
+    const userId = req.user._id;
+    const {language} = req.body
+
+    if(!language){
+        return res.status(200).json(
+            new apiResponse(200,"No language provided-Nothing changed")
+        )
+    }
+
+    const user = await User.findById(userId)
+
+    if(!user){
+        throw new apiError(404,"User not found")
+    }
+
+    user.preferredLanguage = language;
+    await user.save()
+
+    await cacheUser(user)
+
+    return res.status(200).json(
+        new apiResponse(200,`Preferred language changed to ${language}`)
+    )
+}
+
 export {
     registerUser,
     verifyEmail,
@@ -1014,5 +1059,7 @@ export {
     changeUsername,
     changeBio,
     forgotPassword,
-    resetPassword
+    resetPassword,
+    toggleTimer,
+    preferredLanguage
 }
