@@ -35,6 +35,7 @@ export interface IProblem extends Document {
     // Metadata
     tags?: string[];
     createdBy: mongoose.Types.ObjectId;
+    timeTaken?: number;
 
     // Statistics
     totalSubmissions: number;
@@ -167,6 +168,10 @@ const problemSchema = new Schema<IProblem>(
             type: Schema.Types.ObjectId,
             ref: "User",
             required: true,
+        },
+
+        timeTaken: {
+            type: Number
         },
 
         // Statistics
