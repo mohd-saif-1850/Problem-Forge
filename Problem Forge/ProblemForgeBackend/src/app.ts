@@ -11,8 +11,10 @@ app.get("/", (req, res) => {
 });
 
 //Routing
-import userRouter from "./routes/user.route";
+import userRoutes from "./routes/user.route";
+import githubRoutes from "./routes/github.route"
 
-app.use("/api/v1/users", userRouter);
+app.use("/api/v1/users", userRoutes);
+app.use("/api/v1/oauth", githubRoutes);
 
 export default app;

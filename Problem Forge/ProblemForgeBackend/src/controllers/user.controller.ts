@@ -99,7 +99,7 @@ const registerUser = async (req : Request, res : Response) => {
     )
 
     return res.status(200).json(
-        new apiResponse(200,"Please verify your email")
+        new apiResponse(200,"Please verify your email",email)
     )
 }
 
@@ -137,6 +137,7 @@ const verifyEmail = async (req: Request, res: Response) => {
         username: userData.username,
         password: userData.password,
         isEmailVerified: true,
+        authProvider: "email"
     });
 
     await redis.del(
@@ -239,7 +240,8 @@ const login = async (req: Request, res: Response) => {
         return res.status(200).json(
             new apiResponse(
                 200,
-                "Please confirm your account"
+                "Please confirm your account",
+                email
             )
         )
     }
@@ -566,7 +568,8 @@ const toggleTwoStepVerification = async (
             200,
             user.twoStepVerification
                 ? "Verification code sent to disable two-step verification"
-                : "Verification code sent to enable two-step verification"
+                : "Verification code sent to enable two-step verification",
+            {email: user.email}
         )
     )
 }
@@ -877,6 +880,11 @@ const forgotPassword = async ( req: Request, res: Response) => {
 
     if(!existedUser){
         throw new apiError(400,"User not found")
+    }
+
+    if(existedUser.githubId && !existedUser.email){
+        throw new apiError(403,`This account was created using GitHub and doesn't have an email address linked.
+                                Please sign in with GitHub and add an email address in your account settings before resetting your password.`)
     }
 
     const requested = await redis.ttl(

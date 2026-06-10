@@ -11,7 +11,7 @@ const cacheUser = async (
         `session:user:${user._id}`,
         JSON.stringify({
             _id: user._id,
-            name: user.name,
+            name: user.name || "",
             username: user.username,
             profilePicture: user.profilePicture,
             bio: user.bio,

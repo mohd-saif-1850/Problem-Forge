@@ -21,8 +21,8 @@ export interface IUser extends Document {
   twoStepVerificationChangedAt?: Date;
 
   // GitHub
-  gitUsername?: string;
-  gitId?: string;
+  githubUsername?: string;
+  githubId?: string;
 
   // Security
   passwordResetToken?: string;
@@ -40,6 +40,7 @@ export interface IUser extends Document {
   isActive: boolean;
   isBanned: boolean;
   banReason?: string;
+  authProvider: string;
 
   // Activity
   lastLogin?: Date;
@@ -121,12 +122,12 @@ const userSchema = new Schema<IUser>(
   },
 
     // GitHub
-    gitUsername: {
+    githubUsername: {
       type: String,
       default: null,
     },
 
-    gitId: {
+    githubId: {
       type: String,
       unique: true,
       sparse: true,
