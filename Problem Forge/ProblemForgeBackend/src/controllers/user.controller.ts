@@ -1159,7 +1159,7 @@ const verifyAddEmail = async (req: AuthenticatedRequest, res: Response) => {
             password: hashedPassword
             }
         },{
-            new: true
+            returnDocument: 'after'
         }
     )
 
