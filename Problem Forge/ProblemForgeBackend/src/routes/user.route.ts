@@ -15,7 +15,9 @@ import {
     forgotPassword,
     resetPassword,
     toggleTimer,
-    preferredLanguage
+    preferredLanguage,
+    addEmail,
+    verifyAddEmail
 } from "../controllers/user.controller";
 import verifyJWT from "../middlewares/auth.middleware";
 import upload from "../middlewares/multer.middleware";
@@ -43,5 +45,9 @@ router.patch("/reset-password/:token",resetPassword)
 
 router.patch("/toggle-timer",verifyJWT,toggleTimer)
 router.patch("/change-preferred-language",verifyJWT,preferredLanguage)
+
+// After oAuth
+router.post("/add-email",verifyJWT,addEmail)
+router.patch("/verify-add-email",verifyJWT,verifyAddEmail)
 
 export default router;

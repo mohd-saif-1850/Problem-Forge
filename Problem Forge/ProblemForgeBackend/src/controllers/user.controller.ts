@@ -1053,6 +1053,138 @@ const preferredLanguage = async (req: AuthenticatedRequest, res: Response) => {
     )
 }
 
+const addEmail = async (req: AuthenticatedRequest, res: Response) => {
+    const userId = req.user._id
+    const {email, password} = req.body
+
+    if(!email){
+        throw new apiError(400,"Email is required.")
+    }
+    if(!password){
+        throw new apiError(400,"You can't add the email without the password.")
+    }
+
+    userValidation.email.parse(email)
+    userValidation.password.parse(password)
+
+    const existedUser = await User.findOne({
+        email
+    })
+
+    if(existedUser){
+        throw new apiError(400,"User already with this email. Please use a different email.")
+    }
+
+    const alreadyLinked = await User.findById(userId)
+
+    if(!alreadyLinked){
+        throw new apiError(404,"User not found.")
+    }
+
+    if(alreadyLinked?.email){
+        throw new apiError(404,"An email is already linked to this account.")
+    }
+
+    const redisTtl = await redis.ttl(`addEmail:email:${userId}`)
+
+    if(redisTtl > 0){
+        throw new apiError(400,`You already requested an otp. Please wait ${redisTtl} seconds to request a new one.`)
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString()
+    const hashedPassword = await bcrypt.hash(password,10)
+
+    await sendMail({
+        email,
+        subject : "Verify Your Problem Forge Account",
+        layout : verifyEmailLayout(
+            alreadyLinked.username,
+            otp
+    )}
+    )
+
+    await redis.set(
+        `addEmail:email:${userId}`,email,'EX', 600
+    )
+    await redis.set(
+        `addEmail:password:${userId}`,hashedPassword,'EX', 600
+    )
+    await redis.set(
+        `addEmail:otp:${userId}`,otp,'EX', 600
+    )
+    
+
+    return res.status(200).json(
+        new apiResponse(200,"Please verify your email.")
+    )
+}
+
+const verifyAddEmail = async (req: AuthenticatedRequest, res: Response) => {
+    const userId = req.user._id
+    const {otp} = req.body
+
+    if(!otp){
+        throw new apiError(400,"Otp is required.")
+    }
+
+    const existedOtp = await redis.get(
+        `addEmail:otp:${userId}`
+    )
+
+    if(!existedOtp){
+        throw new apiError(404,"Otp doesn't exist.")
+    }
+    if(existedOtp !== otp){
+        throw new apiError(404,"Incorrect otp.")
+    }
+
+    const email = await redis.get(
+        `addEmail:email:${userId}`
+    )
+    const hashedPassword = await redis.get(
+        `addEmail:password:${userId}`
+    )
+
+    if (!email || !hashedPassword) {
+        throw new apiError(
+            400,
+            "Verification data expired. Please try again."
+        );
+    }
+
+    const user = await User.findByIdAndUpdate(userId,{
+        $set:{
+            email,
+            isEmailVerified: true,
+            password: hashedPassword
+            }
+        },{
+            new: true
+        }
+    )
+
+    if(!user){
+        throw new apiError(400,"Failed to update user. Please try again later.")
+    }
+
+    await redis.del(
+        `addEmail:email:${userId}`
+    )
+    await redis.del(
+        `addEmail:password:${userId}`
+    )
+    await redis.del(
+        `addEmail:otp:${userId}`
+    )
+
+    await cacheUser(user)
+
+    return res.status(200).json(
+        new apiResponse(200,"Email is added to your account.")
+    )
+    
+}
+
 export {
     registerUser,
     verifyEmail,
@@ -1069,5 +1201,7 @@ export {
     forgotPassword,
     resetPassword,
     toggleTimer,
-    preferredLanguage
+    preferredLanguage,
+    addEmail,
+    verifyAddEmail
 }
