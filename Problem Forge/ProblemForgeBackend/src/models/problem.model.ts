@@ -10,7 +10,7 @@ export interface IExample {
 
 export interface ITestCase {
     input: string;
-    output: string;
+    expectedOutput: string;
 }
 
 export interface IProblem extends Document {
@@ -18,6 +18,7 @@ export interface IProblem extends Document {
     title: string;
     slug: string;
     problemStatement: string;
+    problemNumber: number;
     description?: string;
     difficulty: Difficulty;
     points: number;
@@ -52,6 +53,7 @@ export interface IProblem extends Document {
     // Visibility
     isPublished: boolean;
     isPremium: boolean;
+    isMain: boolean;
 }
 
 const exampleSchema = new Schema(
@@ -82,7 +84,7 @@ const testCaseSchema = new Schema(
             type: String,
             required: true,
         },
-        output: {
+        expectedOutput: {
             type: String,
             required: true,
         },
@@ -99,6 +101,7 @@ const problemSchema = new Schema<IProblem>(
             type: String,
             required: true,
             trim: true,
+            unique: true
         },
 
         slug: {
@@ -113,6 +116,12 @@ const problemSchema = new Schema<IProblem>(
             type: String,
             required: true,
             trim: true,
+        },
+
+        problemNumber: {
+            type: Number,
+            required: true,
+            unique: true,
         },
 
         description: {
@@ -214,20 +223,23 @@ const problemSchema = new Schema<IProblem>(
         // Visibility
         isPublished: {
             type: Boolean,
-            default: false,
+            default: true,
         },
 
         isPremium: {
             type: Boolean,
             default: false,
         },
+        isMain: {
+            type: Boolean,
+            default: true
+        }
     },
     {
         timestamps: true,
     }
 );
 
-problemSchema.index({ slug: 1 });
 problemSchema.index({ difficulty: 1 });
 problemSchema.index({ tags: 1 });
 
