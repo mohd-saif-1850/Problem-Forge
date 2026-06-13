@@ -1,6 +1,6 @@
 import { Request,Response } from "express";
 import { AuthenticatedRequest } from "../middlewares/auth.middleware";
-import { problemValidationSchema } from "../validation/problem/problemValidation";
+import { problemValidationSchema, updateProblemSchema } from "../validation/problem/problemValidation";
 import apiError from "../utils/apiError";
 import apiResponse from "../utils/apiResponse";
 import { User } from "../models/user.model";
@@ -131,14 +131,97 @@ const createProblem = async (req: AuthenticatedRequest, res: Response) => {
 
 }
 
-const getProblem = async (
-    req: Request,
+const updateProblem = async (req: AuthenticatedRequest, res: Response) => {
+    const userId = req.user._id;
+    const {problemId} = req.params
+
+    const {
+        title,
+        problemStatement,
+        description,
+        constraints,
+        examples,
+        tags,
+        timeLimit,
+        memoryLimit
+    } = req.body;
+
+    if(!problemId){
+        throw new apiError(400,"Problem id is required")
+    }
+
+    const validationResult = updateProblemSchema.safeParse(req.body)
+
+    if(!validationResult.success){
+        throw new apiError(400,validationResult.error.issues[0].message)
+    }
+
+    const existingProblem = await Problem.findOne({
+        title,
+        _id: { $ne: problemId }
+    });
+
+    if (existingProblem) {
+        throw new apiError(
+            409,
+            "A problem with this title already exists"
+        );
+    }
+
+    const problem = await Problem.findById(problemId)
+
+    if(!problem){
+        throw new apiError(404,"Problem not found")
+    }
+    if(!problem.createdBy.equals(userId) && req.user.role !== "admin"){
+        throw new apiError(403,"You are not the creator. You can't update the problem details.")
+    }
+
+    const slug = slugify(title, {
+        lower: true,
+        strict: true,
+        trim: true,
+    });
+
+    // Update
+
+    problem.title = title;
+    problem.slug = slug;
+
+    problem.problemStatement = problemStatement;
+    problem.description = description;
+
+    problem.constraints = constraints;
+    problem.examples = examples;
+
+    problem.tags = tags;
+
+    problem.timeLimit = timeLimit;
+    problem.memoryLimit = memoryLimit;
+
+    await problem.save()
+
+    return res.status(200).json(
+        new apiResponse(200,"Problem updated successfully")
+    )
+
+}
+
+const getCurrentProblem = async (
+    req: AuthenticatedRequest,
     res: Response
 ) => {
 
+    const {slug} = req.params
+
+    if(!slug){
+        throw new apiError(400,"Problem slug is required")
+    }
+
     const problem = await Problem
-        .findOne({ title: "Two Sum" })
-        .select("-hiddenCases -referenceSolution");
+        .findOne({ slug })
+        .select("-hiddenCases -referenceSolution")
+        .lean();
 
     if (!problem) {
         throw new apiError(
@@ -156,7 +239,180 @@ const getProblem = async (
     );
 };
 
+const searchProblems = async (
+    req: AuthenticatedRequest,
+    res: Response
+) => {
+    const { query } = req.query;
+
+    if (!query) {
+        throw new apiError(
+            400,
+            "Search query is required"
+        );
+    }
+
+    const searchTerm = query.toString();
+
+    const problems = await Problem.find({
+        $or: [
+            {
+                title: {
+                    $regex: searchTerm,
+                    $options: "i",
+                },
+            },
+            {
+                slug: {
+                    $regex: searchTerm,
+                    $options: "i",
+                },
+            },
+            {
+                tags: {
+                    $regex: searchTerm,
+                    $options: "i",
+                },
+            },
+            {
+                difficulty: {
+                    $regex: searchTerm,
+                    $options: "i",
+                },
+            },
+            {
+                problemNumber: Number(searchTerm) || -1,
+            },
+        ],
+    })
+        .select("-hiddenCases -referenceSolution")
+        .lean();
+
+    return res.status(200).json(
+        new apiResponse(
+            200,
+            "Problems fetched successfully",
+            problems
+        )
+    );
+};
+
+const getAllProblems = async (
+    req: AuthenticatedRequest,
+    res: Response
+) => {
+    const page = Number(req.query.page) || 1;
+    const limit = 20;
+    const skip = (page - 1) * limit;
+
+    const totalProblems = await Problem.countDocuments();
+
+    const problems = await Problem
+        .find()
+        .select("-hiddenCases -referenceSolution")
+        .skip(skip)
+        .limit(limit)
+        .lean();
+
+    return res.status(200).json(
+        new apiResponse(
+            200,
+            "Problems fetched successfully",
+            {
+                page,
+                totalPages: Math.ceil(
+                    totalProblems / limit
+                ),
+                totalProblems,
+                problems,
+            }
+        )
+    );
+};
+
+const getMainProblems = async (
+    req: AuthenticatedRequest,
+    res: Response
+) => {
+    const page = Number(req.query.page) || 1;
+    const limit = 20;
+    const skip = (page - 1) * limit;
+
+    const totalProblems = await Problem.countDocuments({
+        isMain: true,
+    });
+
+    const problems = await Problem
+        .find({
+            isMain: true,
+        })
+        .select("-hiddenCases -referenceSolution")
+        .skip(skip)
+        .limit(limit)
+        .lean();
+
+    return res.status(200).json(
+        new apiResponse(
+            200,
+            "Main problems fetched successfully",
+            {
+                page,
+                totalPages: Math.ceil(
+                    totalProblems / limit
+                ),
+                totalProblems,
+                problems,
+            }
+        )
+    );
+};
+
+const getMyProblems = async (
+    req: AuthenticatedRequest,
+    res: Response
+) => {
+    const userId = req.user._id;
+
+    const page = Number(req.query.page) || 1;
+    const limit = 20;
+    const skip = (page - 1) * limit;
+
+    const totalProblems = await Problem.countDocuments({
+        createdBy: userId,
+    });
+
+    const problems = await Problem
+        .find({
+            createdBy: userId,
+        })
+        .select("-hiddenCases -referenceSolution")
+        .skip(skip)
+        .limit(limit)
+        .lean();
+
+    return res.status(200).json(
+        new apiResponse(
+            200,
+            "Problems fetched successfully",
+            {
+                page,
+                totalPages: Math.ceil(
+                    totalProblems / limit
+                ),
+                totalProblems,
+                problems,
+            }
+        )
+    );
+};
+
+
 export {
     createProblem,
-    getProblem
+    updateProblem,
+    getCurrentProblem,
+    searchProblems,
+    getAllProblems,
+    getMainProblems,
+    getMyProblems
 }

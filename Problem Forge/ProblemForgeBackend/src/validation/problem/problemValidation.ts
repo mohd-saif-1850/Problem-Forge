@@ -142,3 +142,6 @@ export const problemValidationSchema = z.object({
 
     isPremium: z.boolean().optional(),
 });
+
+export const updateProblemSchema =
+    problemValidationSchema.partial();
