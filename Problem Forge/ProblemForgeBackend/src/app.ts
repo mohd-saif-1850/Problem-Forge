@@ -21,9 +21,11 @@ app.get("/", (req, res) => {
 import userRoutes from "./routes/user.route";
 import githubRoutes from "./routes/github.route"
 import problemRoutes from "./routes/problem.route"
+import submissionRoutes from "./routes/submission.route"
 
 app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/oauth", githubRoutes);
 app.use("/api/v1/problems", problemRoutes);
+app.use("/api/v1/submissions", submissionRoutes);
 
 export default app;
