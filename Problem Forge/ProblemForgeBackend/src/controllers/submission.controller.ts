@@ -181,6 +181,7 @@ const submitProblem = async (
 
         user.experiencePoints += xpMap[problem.difficulty];
         user.totalPoints += problem.points
+        updateStreak(user)
 
         await user.save()
 
@@ -191,7 +192,6 @@ const submitProblem = async (
             problem: problem._id
         })
 
-        updateStreak(user)
 
         // Now to give the admin some bonus points
         const admin = await User.findById(problem.createdBy) as IUser
