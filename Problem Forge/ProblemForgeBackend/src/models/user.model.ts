@@ -1,7 +1,14 @@
 import mongoose, { Document, Schema } from "mongoose";
 
 type UserRole = "user" | "admin";
-type UserSubscription = "free" | "premium";
+
+interface IUserSubscription {
+    plan: "free" | "premium";
+
+    startedAt?: Date | null;
+
+    expiresAt: Date | null;
+}
 
 export interface IUser extends Document {
   name?: string;
@@ -13,7 +20,7 @@ export interface IUser extends Document {
   profilePicturePublicId?: string;
   bio?: string;
 
-  subscription: UserSubscription;
+  subscription: IUserSubscription;
 
   // Verification
   isEmailVerified: boolean;
@@ -103,9 +110,24 @@ const userSchema = new Schema<IUser>(
     },
 
     subscription: {
-      type: String,
-      enum: ["free", "premium"],
-      default: "free",
+      plan: {
+        type: String,
+        enum: [
+          "free",
+          "premium"
+        ],
+        default: "free"
+      },
+
+      startedAt: {
+        type: Date,
+        default: null
+      },
+
+      expiresAt: {
+        type: Date,
+        default: null
+      }
     },
 
     // Verification
@@ -120,7 +142,7 @@ const userSchema = new Schema<IUser>(
     twoStepVerificationChangedAt: {
       type: Date,
       default: null
-  },
+    },
 
     // GitHub
     githubUsername: {

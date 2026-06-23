@@ -9,6 +9,7 @@ import { statusType, Submission } from "../models/submission.model";
 import { IUser, User } from "../models/user.model";
 import { PointsHistory } from "../models/points.model";
 import { updateStreak } from "../services/updateStreak";
+import { hasPremiumAccess } from "../utils/hasPremium";
 
 const submitProblem = async (
     req: AuthenticatedRequest,
@@ -64,7 +65,7 @@ const submitProblem = async (
     if (!problem.isPublished) {
         throw new apiError(404, "Problem is not published yet")
     }
-    if (problem.isPremium && !user.subscription) {
+    if (problem.isPremium && !hasPremiumAccess(user)) {
         throw new apiError(401, "You need subscription to solve the premium problems")
     }
 
@@ -319,7 +320,7 @@ const runProblem = async (req: AuthenticatedRequest, res: Response) => {
     if (!problem.isPublished) {
         throw new apiError(404, "Problem is not published yet")
     }
-    if (problem.isPremium && !user.subscription) {
+    if (problem.isPremium && !hasPremiumAccess(user)) {
         throw new apiError(401, "You need subscription to solve the premium problems")
     }
 

@@ -8,6 +8,7 @@ import redis from "../config/redis";
 import getUserFromCacheOrDB from "../utils/getUserFromRedisOrDb";
 import { Problem } from "../models/problem.model";
 import slugify from "slugify";
+import { hasPremiumAccess } from "../utils/hasPremium";
 
 const createProblem = async (req: AuthenticatedRequest, res: Response) => {
     const createdBy = req.user._id;
@@ -52,7 +53,7 @@ const createProblem = async (req: AuthenticatedRequest, res: Response) => {
     if(!user){
         throw new apiError(404,"User not found")
     }
-    if(!user.subscription){
+    if(!hasPremiumAccess(user)){
         throw new apiError(403,"Subscription required to create a problem.")
     }
 
@@ -210,11 +211,21 @@ const getCurrentProblem = async (
     req: AuthenticatedRequest,
     res: Response
 ) => {
+    const userId = req.user._id
 
     const {slug} = req.params
 
     if(!slug){
         throw new apiError(400,"Problem slug is required")
+    }
+
+    if(!userId){
+        throw new apiError(404,"User Id required")
+    }
+
+    const user = await User.findById(userId)
+    if(!user){
+        throw new apiError(400,"User not found")
     }
 
     const problem = await Problem
@@ -227,6 +238,9 @@ const getCurrentProblem = async (
             404,
             "Problem not found"
         );
+    }
+    if(problem.isPremium && !hasPremiumAccess(user)){
+        throw new apiError(403,"You need subscription for this problem.")
     }
 
     return res.status(200).json(
