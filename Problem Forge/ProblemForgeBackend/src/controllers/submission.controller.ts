@@ -19,7 +19,8 @@ const submitProblem = async (
     const {
         sourceCode,
         problemId,
-        language
+        language,
+        timeTaken
     } = req.body;
 
     if (!problemId) {
@@ -227,7 +228,9 @@ const submitProblem = async (
                 allTestCases.length,
 
             executionTime,
-            memoryUsed
+            memoryUsed,
+
+            timeTaken
         });
 
     await redis.set(

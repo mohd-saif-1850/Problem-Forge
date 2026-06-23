@@ -15,7 +15,9 @@ export interface ISubmission extends Document{
     totalTestCases: number;
 
     executionTime: number;
-    memoryUsed: number
+    memoryUsed: number;
+
+    timeTaken?: number;
 }
 
 const submissionSchema = new Schema<ISubmission>({
@@ -61,6 +63,11 @@ const submissionSchema = new Schema<ISubmission>({
     memoryUsed: {
         type: Number,
         default: 0
+    },
+
+    timeTaken: {
+        type: Number,
+        default: null
     }
 },{timestamps: true})
 
