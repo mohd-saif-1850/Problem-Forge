@@ -6,6 +6,9 @@ import apiError from "../utils/apiError";
 import { Problem } from "../models/problem.model";
 import redis from "../config/redis";
 import { statusType, Submission } from "../models/submission.model";
+import { IUser, User } from "../models/user.model";
+import { PointsHistory } from "../models/points.model";
+import { updateStreak } from "../services/updateStreak";
 
 const submitProblem = async (
     req: AuthenticatedRequest,
@@ -42,15 +45,26 @@ const submitProblem = async (
 
     const problem = await Problem.findById(
         problemId
-    ).select(
-        "testCases hiddenCases timeLimit memoryLimit"
-    );
+    )
 
     if (!problem) {
         throw new apiError(
             404,
             "Problem not found"
         );
+    }
+
+    const user = await User.findById(userId)
+
+    if(!user){
+        throw new apiError(400,"User not found")
+    }
+
+    if(!problem.isPublished){
+        throw new apiError(404,"Problem is not published yet")
+    }
+    if(problem.isPremium && !user.subscription){
+        throw new apiError(401,"You need subscription to solve the premium problems")
     }
 
     const cooldownKey =
@@ -152,6 +166,50 @@ const submitProblem = async (
         passedTestCases++;
     }
 
+    const alreadySubmitted = await Submission.findOne({
+        submittedBy: userId,
+        problem: problem._id,
+        status: "Accepted"
+    })
+
+    if(status === "Accepted" && !alreadySubmitted && !problem.createdBy.equals(userId)){
+        const xpMap = {
+            easy: 10,
+            medium: 25,
+            hard: 50
+        };
+
+        user.experiencePoints += xpMap[problem.difficulty];
+        user.totalPoints += problem.points
+        
+        await user.save()
+
+        await PointsHistory.create({
+            user: user._id,
+            points: problem.points,
+            reason: "Problem Solved",
+            problem: problem._id
+        })
+
+        updateStreak(user)
+
+        // Now to give the admin some bonus points
+        const admin = await User.findById(problem.createdBy) as IUser
+
+        admin.totalPoints += 10
+        await admin.save()
+
+        await PointsHistory.create({
+            user: admin._id,
+            points: 10,
+            reason: "Problem Created Reward",
+            problem: problem._id
+        })
+
+        // Now to set the problem submissions
+        problem.totalSolvedUsers += 1
+    }
+
     const submission =
         await Submission.create({
             submittedBy: userId,
@@ -179,6 +237,13 @@ const submitProblem = async (
         60
     );
 
+    // Now set the problem details
+    problem.totalSubmissions += 1;
+    if (status === "Accepted") {
+        problem.totalAcceptedSubmissions += 1;
+    }
+    await problem.save()
+
     if (failureDetails) {
         return res.status(200).json(
             new apiResponse(
@@ -192,6 +257,7 @@ const submitProblem = async (
         );
     }
 
+
     return res.status(200).json(
         new apiResponse(
             200,
@@ -200,63 +266,6 @@ const submitProblem = async (
         )
     );
 };
-
-
-
-// const testJudge0 = async (
-//     req: Request,
-//     res: Response
-// ) => {
-//     try {
-//         const {
-//             sourceCode,
-//             language,
-//             stdin
-//         } = req.body;
-
-//         if (!sourceCode || !language) {
-//             res.status(400).json({
-//                 success: false,
-//                 message: "Source code and language are required"
-//             });
-//             return;
-//         }
-
-//         const result = await Judge0Service.executeCode(
-//             sourceCode,
-//             language,
-//             stdin ?? ""
-//         );
-
-//         res.status(200).json({
-//             success: true,
-//             data: result
-//         });
-
-//     } catch (error: any) {
-//         console.error("Judge0 Execution Error:", error);
-
-//         if (error.response?.data?.error) {
-//             res.status(400).json(
-//                 new apiResponse(
-//                     400,
-//                     error.response.data.error,
-//                     null
-//                 )
-//             );
-//             return;
-//         }
-
-//         res.status(500).json(
-//             new apiResponse(
-//                 500,
-//                 "Failed to execute code",
-//                 null
-//             )
-//         );
-//         return;
-//     }
-// };
 
 export {
     submitProblem

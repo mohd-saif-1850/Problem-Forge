@@ -33,6 +33,7 @@ export interface IUser extends Document {
   totalPoints: number;
   experiencePoints: number;
   streaks: number;
+  lastSolvedDate?: Date;
   badgesCount: number;
 
   // Account Status
@@ -167,6 +168,10 @@ const userSchema = new Schema<IUser>(
       type: Number,
       default: 0,
       min: 0,
+    },
+
+    lastSolvedDate: {
+      type: Date
     },
 
     badgesCount: {
