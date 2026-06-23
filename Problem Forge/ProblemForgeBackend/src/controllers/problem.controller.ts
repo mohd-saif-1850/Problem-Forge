@@ -5,7 +5,6 @@ import apiError from "../utils/apiError";
 import apiResponse from "../utils/apiResponse";
 import { User } from "../models/user.model";
 import redis from "../config/redis";
-import cacheUser from "../utils/cacheUser";
 import getUserFromCacheOrDB from "../utils/getUserFromRedisOrDb";
 import { Problem } from "../models/problem.model";
 import slugify from "slugify";

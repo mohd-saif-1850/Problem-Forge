@@ -2,7 +2,6 @@ import {Request, Response} from "express"
 import apiError from "../utils/apiError";
 import axios from "axios";
 import { User } from "../models/user.model";
-import cacheUser from "../utils/cacheUser";
 import { sendTwoStepVerification } from "../utils/twoStepVerification";
 import apiResponse from "../utils/apiResponse";
 import { handleDeviceLogin } from "../utils/deviceLogin";
@@ -135,8 +134,6 @@ const githubCallback = async (req: Request, res: Response) => {
         secure: process.env.NODE_ENV === "production",
         sameSite: "strict" as const,
     }
-
-    await cacheUser(user)
 
     return res
     .status(200)

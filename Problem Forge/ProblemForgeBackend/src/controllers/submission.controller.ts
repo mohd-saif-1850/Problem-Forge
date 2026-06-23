@@ -56,15 +56,15 @@ const submitProblem = async (
 
     const user = await User.findById(userId)
 
-    if(!user){
-        throw new apiError(400,"User not found")
+    if (!user) {
+        throw new apiError(400, "User not found")
     }
 
-    if(!problem.isPublished){
-        throw new apiError(404,"Problem is not published yet")
+    if (!problem.isPublished) {
+        throw new apiError(404, "Problem is not published yet")
     }
-    if(problem.isPremium && !user.subscription){
-        throw new apiError(401,"You need subscription to solve the premium problems")
+    if (problem.isPremium && !user.subscription) {
+        throw new apiError(401, "You need subscription to solve the premium problems")
     }
 
     const cooldownKey =
@@ -172,7 +172,7 @@ const submitProblem = async (
         status: "Accepted"
     })
 
-    if(status === "Accepted" && !alreadySubmitted && !problem.createdBy.equals(userId)){
+    if (status === "Accepted" && !alreadySubmitted && !problem.createdBy.equals(userId)) {
         const xpMap = {
             easy: 10,
             medium: 25,
@@ -181,7 +181,7 @@ const submitProblem = async (
 
         user.experiencePoints += xpMap[problem.difficulty];
         user.totalPoints += problem.points
-        
+
         await user.save()
 
         await PointsHistory.create({
@@ -257,7 +257,6 @@ const submitProblem = async (
         );
     }
 
-
     return res.status(200).json(
         new apiResponse(
             200,
@@ -267,6 +266,104 @@ const submitProblem = async (
     );
 };
 
+const runProblem = async (req: AuthenticatedRequest, res: Response) => {
+    const userId = req.user._id;
+
+    const {
+        sourceCode,
+        problemId,
+        language
+    } = req.body;
+
+    if (!problemId) {
+        throw new apiError(
+            400,
+            "Problem ID is required"
+        );
+    }
+
+    if (!sourceCode) {
+        throw new apiError(
+            400,
+            "Source code is required"
+        );
+    }
+
+    if (!language) {
+        throw new apiError(
+            400,
+            "Programming language is required"
+        );
+    }
+
+    const problem = await Problem.findById(
+        problemId
+    )
+
+    if (!problem) {
+        throw new apiError(
+            404,
+            "Problem not found"
+        );
+    }
+
+    const user = await User.findById(userId)
+
+    if (!user) {
+        throw new apiError(400, "User not found")
+    }
+
+    if (!problem.isPublished) {
+        throw new apiError(404, "Problem is not published yet")
+    }
+    if (problem.isPremium && !user.subscription) {
+        throw new apiError(401, "You need subscription to solve the premium problems")
+    }
+
+    const results = [];
+
+    for (const testCase of problem.testCases) {
+
+        const result =
+            await Judge0Service.executeCode(
+                sourceCode,
+                language,
+                testCase.input
+            );
+
+        results.push({
+            input: testCase.input,
+            expectedOutput:
+                testCase.expectedOutput,
+            actualOutput:
+                result.output || "",
+            status: result.success
+                ? (
+                    result.output?.trim() ===
+                    testCase.expectedOutput.trim()
+                )
+                    ? "Passed"
+                    : "Failed"
+                : result.status,
+            executionTime:
+                result.executionTime,
+            memoryUsed:
+                result.memoryUsed
+        });
+    }
+
+    return res.status(200).json(
+        new apiResponse(
+            200,
+            "Code executed successfully",
+            {
+                results
+            }
+        )
+    );
+}
+
 export {
-    submitProblem
+    submitProblem,
+    runProblem
 }
