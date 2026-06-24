@@ -17,10 +17,15 @@ import {
     toggleTimer,
     preferredLanguage,
     addEmail,
-    verifyAddEmail
+    verifyAddEmail,
+    getSolveHeatmap,
+    searchFollowUsers,
+    searchUsers,
+    getProfile
 } from "../controllers/user.controller";
 import verifyJWT from "../middlewares/auth.middleware";
 import upload from "../middlewares/multer.middleware";
+import { followUser, getFollowers, getFollowing, isFollowing, unfollowUser } from "../controllers/follow.controller";
 
 const router = Router();
 
@@ -39,6 +44,9 @@ router.patch("/change-name",verifyJWT, changeName),
 router.patch("/change-username",verifyJWT, changeUsername),
 router.patch("/change-bio",verifyJWT, changeBio)
 
+router.get("/search-user",verifyJWT,searchUsers)
+router.get("/get-profile",verifyJWT,getProfile)
+
 // Password
 router.post("/forgot-password",forgotPassword),
 router.patch("/reset-password/:token",resetPassword)
@@ -49,5 +57,16 @@ router.patch("/change-preferred-language",verifyJWT,preferredLanguage)
 // After oAuth
 router.post("/add-email",verifyJWT,addEmail)
 router.patch("/verify-add-email",verifyJWT,verifyAddEmail)
+
+// Heatmap
+router.get("/:username/heatmap",verifyJWT,getSolveHeatmap)
+
+// Follow routes
+router.post("/:username/follow",verifyJWT,followUser)
+router.delete("/:username/unfollow",verifyJWT,unfollowUser)
+router.get("/:username/followers",verifyJWT,getFollowers)
+router.get("/:username/following",verifyJWT,getFollowing)
+router.get("/:username/isFollowing",verifyJWT,isFollowing)
+router.get("/:username/search",verifyJWT,searchFollowUsers)
 
 export default router;

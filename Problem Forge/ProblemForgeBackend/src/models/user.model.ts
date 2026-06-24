@@ -3,11 +3,11 @@ import mongoose, { Document, Schema } from "mongoose";
 type UserRole = "user" | "admin";
 
 interface IUserSubscription {
-    plan: "free" | "premium";
+  plan: "free" | "premium";
 
-    startedAt?: Date | null;
+  startedAt?: Date | null;
 
-    expiresAt: Date | null;
+  expiresAt: Date | null;
 }
 
 export interface IUser extends Document {
@@ -41,6 +41,7 @@ export interface IUser extends Document {
   experiencePoints: number;
   streaks: number;
   lastSolvedDate?: Date;
+  badge?: string;
   badgesCount: number;
 
   // Account Status
@@ -48,7 +49,8 @@ export interface IUser extends Document {
   isActive: boolean;
   isBanned: boolean;
   banReason?: string;
-  authProvider: string;
+  activityVisibility: string;
+  authProvider?: string;
 
   // Activity
   lastLogin?: Date;
@@ -196,6 +198,10 @@ const userSchema = new Schema<IUser>(
       type: Date
     },
 
+    badge: {
+      type: String
+    },
+
     badgesCount: {
       type: Number,
       default: 0,
@@ -222,6 +228,20 @@ const userSchema = new Schema<IUser>(
     banReason: {
       type: String,
       default: null,
+    },
+
+    activityVisibility: {
+      type: String,
+      enum: [
+        "public",
+        "followers",
+        "private"
+      ],
+      default: "public"
+    },
+
+    authProvider: {
+      type: String
     },
 
     // Activity

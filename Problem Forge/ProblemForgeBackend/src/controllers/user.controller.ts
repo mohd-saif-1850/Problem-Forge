@@ -16,6 +16,8 @@ import crypto from "crypto"
 import { toggleTwoStepVerificationLayout } from "../emails/toggleTwoStepVerificationLayout";
 import uploadProfilePicture from "../services/uploadProfilePicture";
 import { forgotPasswordLayout } from "../emails/forgotPasswordEmailLayout";
+import { Submission } from "../models/submission.model";
+import { Follow } from "../models/follow.model";
 
 const registerUser = async (req: Request, res: Response) => {
     const { email, username, password } = req.body
@@ -1167,6 +1169,283 @@ const verifyAddEmail = async (req: AuthenticatedRequest, res: Response) => {
 
 }
 
+const searchUsers = async (
+    req: AuthenticatedRequest,
+    res: Response
+) => {
+    const { q } = req.query;
+
+    if (!q || typeof q !== "string") {
+        throw new apiError(
+            400,
+            "Search query is required."
+        );
+    }
+
+    const users = await User.find({
+        username: {
+            $regex: q.trim(),
+            $options: "i"
+        },
+
+        isActive: true,
+        isBanned: false
+    })
+        .select(
+            "username profilePicture followersCount"
+        )
+        .limit(20);
+
+    return res.status(200).json(
+        new apiResponse(
+            200,
+            "Users fetched successfully.",
+            users
+        )
+    );
+};
+
+const getSolveHeatmap = async (
+    req: AuthenticatedRequest,
+    res: Response
+) => {
+    const { username } = req.params;
+
+    if (!username) {
+        throw new apiError(
+            400,
+            "Username is required."
+        );
+    }
+
+    const user = await User.findOne({
+        username
+    }).select("_id")
+
+    if(!user){
+        throw new apiError(404,"User not found")
+    }
+
+    const startDate = new Date();
+    startDate.setFullYear(
+        startDate.getFullYear() - 1
+    );
+
+    const heatmap = await Submission.aggregate([
+        {
+            $match: {
+                submittedBy: user._id,
+                status: "Accepted",
+                createdAt: {
+                    $gte: startDate
+                }
+            }
+        },
+
+        {
+            $group: {
+                _id: {
+                    $dateToString: {
+                        format: "%Y-%m-%d",
+                        date: "$createdAt"
+                    }
+                },
+
+                count: {
+                    $sum: 1
+                }
+            }
+        },
+
+        {
+            $project: {
+                _id: 0,
+                date: "$_id",
+                count: 1
+            }
+        },
+
+        {
+            $sort: {
+                date: 1
+            }
+        }
+    ]);
+
+    const totalAccepted = heatmap.reduce(
+        (total, day) => total + day.count,
+        0
+    );
+
+    const activeDays = heatmap.length;
+
+    return res.status(200).json(
+        new apiResponse(
+            200,
+            "Solve heatmap fetched successfully.",
+            {
+                totalAccepted,
+                activeDays,
+                heatmap
+            }
+        )
+    );
+};
+
+const searchFollowUsers = async (
+    req: AuthenticatedRequest,
+    res: Response
+) => {
+    const { username } = req.params;
+
+    const {
+        searchQuery,
+        searchType
+    } = req.query;
+
+    if (!username) {
+        throw new apiError(
+            400,
+            "Username is required."
+        );
+    }
+
+    if (!searchType) {
+        throw new apiError(
+            400,
+            "Search type is required."
+        );
+    }
+
+    if (
+        searchType !== "followers" &&
+        searchType !== "following"
+    ) {
+        throw new apiError(
+            400,
+            "Invalid search type."
+        );
+    }
+
+    const user = await User.findOne({
+        username
+    }).select("_id");
+
+    if (!user) {
+        throw new apiError(
+            404,
+            "User not found."
+        );
+    }
+
+    const follows = await Follow.find(
+        searchType === "followers"
+            ? {
+                  following: user._id
+              }
+            : {
+                  follower: user._id
+              }
+    ).populate({
+        path:
+            searchType === "followers"
+                ? "follower"
+                : "following",
+
+        match: {
+            username: {
+                $regex: searchQuery || "",
+                $options: "i"
+            }
+        },
+
+        select:
+            "username profilePicture followersCount followingCount"
+    });
+
+    const users = follows
+        .map((follow) =>
+            searchType === "followers"
+                ? follow.follower
+                : follow.following
+        )
+        .filter(Boolean);
+
+    return res.status(200).json(
+        new apiResponse(
+            200,
+            "Users fetched successfully.",
+            users
+        )
+    );
+};
+
+const getProfile = async (
+    req: AuthenticatedRequest,
+    res: Response
+) => {
+    const currentUserId = req.user?._id;
+
+    const { username } = req.params;
+
+    if (!username) {
+        throw new apiError(
+            400,
+            "Username is required."
+        );
+    }
+
+    const user = await User.findOne({
+        username,
+        isActive: true,
+        isBanned: false
+    }).select(
+        `
+        username
+        name
+        profilePicture
+        bio
+        followersCount
+        followingCount
+        experiencePoints
+        preferredLanguage
+        createdAt
+        `
+    );
+
+    if (!user) {
+        throw new apiError(
+            404,
+            "User not found."
+        );
+    }
+
+    let isFollowing = false;
+
+    if (
+        currentUserId &&
+        currentUserId.toString() !== user._id.toString()
+    ) {
+        const follow = await Follow.exists({
+            follower: currentUserId,
+            following: user._id
+        });
+
+        isFollowing = !!follow;
+    }
+
+    return res.status(200).json(
+        new apiResponse(
+            200,
+            "Profile fetched successfully.",
+            {
+                user,
+                isFollowing
+            }
+        )
+    );
+};
+
 export {
     registerUser,
     verifyEmail,
@@ -1185,5 +1464,9 @@ export {
     toggleTimer,
     preferredLanguage,
     addEmail,
-    verifyAddEmail
+    verifyAddEmail,
+    searchUsers,
+    getSolveHeatmap,
+    searchFollowUsers,
+    getProfile
 }
