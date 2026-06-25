@@ -21,6 +21,8 @@ export interface IUser extends Document {
   bio?: string;
 
   subscription: IUserSubscription;
+  reputation: number;
+  showReputation: boolean;
 
   // Verification
   isEmailVerified: boolean;
@@ -130,6 +132,15 @@ const userSchema = new Schema<IUser>(
         type: Date,
         default: null
       }
+    },
+
+    reputation: {
+      type: Number,
+      default: 0
+    },
+    showReputation: {
+      type: Boolean,
+      default: false
     },
 
     // Verification
