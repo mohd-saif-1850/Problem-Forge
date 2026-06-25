@@ -6,7 +6,8 @@ export type NotificationType =
     | "submission"
     | "contest"
     | "system"
-    | "achievement";
+    | "achievement"
+    | "feedback";
 
 export interface INotification extends Document {
     recipient: mongoose.Types.ObjectId;
@@ -56,7 +57,8 @@ const notificationSchema = new Schema<INotification>(
                 "submission",
                 "contest",
                 "system",
-                "achievement"
+                "achievement",
+                "feedback"
             ],
             required: true
         },
