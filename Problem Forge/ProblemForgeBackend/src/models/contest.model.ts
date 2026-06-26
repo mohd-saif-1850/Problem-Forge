@@ -23,7 +23,7 @@ interface IContestExample {
 
 interface IContestTestCase {
     input: string;
-    output: string;
+    expectedOutput: string;
 }
 
 interface IContestStats {
@@ -91,8 +91,6 @@ export interface IContest extends Document {
 
     rewardDistributed: boolean;
 
-    participants: Types.ObjectId[];
-
     totalParticipants: number;
 
     minimumParticipants: number;
@@ -128,7 +126,6 @@ const contestSchema = new Schema<IContest>({
     title: {
         type: String,
         required: true,
-        unique: true,
         trim: true,
         minlength: [5, "Title must be at least 5 characters long"],
         maxlength: [100, "Title cannot exceed 100 characters"]
@@ -137,7 +134,6 @@ const contestSchema = new Schema<IContest>({
     slug: {
         type: String,
         required: true,
-        unique: true,
         trim: true,
         lowercase: true
     },
@@ -279,12 +275,6 @@ const contestSchema = new Schema<IContest>({
         default: false
     },
 
-    participants: [{
-        type: Schema.Types.ObjectId,
-        ref: "User",
-        index: true
-    }],
-
     totalParticipants: {
         type: Number,
         default: 0,
@@ -293,14 +283,14 @@ const contestSchema = new Schema<IContest>({
 
     minimumParticipants: {
         type: Number,
-        required: true,
-        min: [2, "Minimum participants must be at least 2"]
+        min: [3, "Minimum participants must be at least 3"],
+        default: 3
     },
 
     maxParticipants: {
         type: Number,
-        required: true,
-        min: [10, "Maximum participants must be at least 10"]
+        default: 30,
+        min: [30, "Maximum participants must be at least 30"]
     },
 
     maxAttempts: {

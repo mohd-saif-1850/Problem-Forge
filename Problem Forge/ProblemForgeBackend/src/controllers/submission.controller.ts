@@ -189,10 +189,13 @@ const submitProblem = async (
 
         await PointsHistory.create({
             user: user._id,
+            type: "problem",
             points: problem.points,
             reason: "Problem Solved",
-            problem: problem._id
-        })
+            metadata: {
+                problemId: problem._id
+            }
+        });
 
 
         // Now to give the admin some bonus points
@@ -203,10 +206,13 @@ const submitProblem = async (
 
         await PointsHistory.create({
             user: admin._id,
+            type: "problem",
             points: 10,
-            reason: "Problem Created Reward",
-            problem: problem._id
-        })
+            reason: "Problem Creation Reward",
+            metadata: {
+                problemId: problem._id
+            }
+        });
 
         // Now to set the problem submissions
         problem.totalSolvedUsers += 1

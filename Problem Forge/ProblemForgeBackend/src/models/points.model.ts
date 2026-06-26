@@ -1,12 +1,32 @@
 import mongoose, { Document, Schema, Types } from "mongoose";
 
+type PointHistoryType =
+    | "problem"
+    | "contest"
+    | "shop"
+    | "badge"
+    | "subscription"
+    | "streak"
+    | "achievement"
+    | "admin"
+    | "other";
+
 export interface IPointHistory extends Document {
     user: Types.ObjectId;
-    problem?: Types.ObjectId;
+
+    type: PointHistoryType;
+
     points: number;
+
     reason: string;
-    createdAt: Date;
-    updatedAt: Date;
+
+    metadata?: {
+        problemId?: Types.ObjectId;
+        contestId?: Types.ObjectId;
+        badgeId?: Types.ObjectId;
+        shopItemId?: Types.ObjectId;
+        subscriptionId?: Types.ObjectId;
+    };
 }
 
 const pointHistorySchema = new Schema<IPointHistory>(
@@ -14,23 +34,40 @@ const pointHistorySchema = new Schema<IPointHistory>(
         user: {
             type: Schema.Types.ObjectId,
             ref: "User",
-            required: [true, "User is required"]
+            required: true,
+            index: true
         },
 
-        problem: {
-            type: Schema.Types.ObjectId,
-            ref: "Problem"
+        type: {
+            type: String,
+            enum: [
+                "problem",
+                "contest",
+                "shop",
+                "badge",
+                "subscription",
+                "streak",
+                "achievement",
+                "admin",
+                "other"
+            ],
+            required: true
         },
 
         points: {
             type: Number,
-            required: [true, "Points are required"]
+            required: true
         },
 
         reason: {
             type: String,
-            required: [true, "Reason is required"],
+            required: true,
             trim: true
+        },
+
+        metadata: {
+            type: Schema.Types.Mixed,
+            default: {}
         }
     },
     {
