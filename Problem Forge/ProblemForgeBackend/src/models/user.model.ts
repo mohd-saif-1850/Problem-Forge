@@ -136,7 +136,8 @@ const userSchema = new Schema<IUser>(
 
     reputation: {
       type: Number,
-      default: 0
+      default: 0,
+      max: 5
     },
     showReputation: {
       type: Boolean,

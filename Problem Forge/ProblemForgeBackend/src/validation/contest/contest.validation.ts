@@ -23,7 +23,7 @@ const contestTestCaseSchema = z.object({
         .trim()
         .min(1, "Test case input is required"),
 
-    output: z
+    expectedOutput: z
         .string()
         .trim()
         .min(1, "Test case output is required")
@@ -53,7 +53,7 @@ export const contestValidationSchema = z.object({
         "easy",
         "medium",
         "hard"
-    ]),
+    ]).optional(),
 
     tags: z
         .array(z.string().trim())
@@ -84,7 +84,7 @@ export const contestValidationSchema = z.object({
     maxParticipants: z
         .number()
         .int()
-        .min(10, "Maximum participants must be at least 10"),
+        .min(10, "Maximum participants must be at least 10").optional(),
 
     visibility: z.enum([
         "public",

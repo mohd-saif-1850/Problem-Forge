@@ -3,7 +3,9 @@ import mongoose, { Document, Types, Schema } from "mongoose";
 type RegistrationStatus =
     | "registered"
     | "cancelled"
+    | "running"
     | "completed"
+    | "ended"
     | "disqualified";
 
 export interface IContestRegistration extends Document {
@@ -34,7 +36,7 @@ const registrationSchema = new Schema<IContestRegistration>({
     },
     status: {
         type: String,
-        enum: ["registered", "cancelled", "completed", "disqualified"],
+        enum: ["registered", "cancelled", "running", "completed", "ended", "disqualified"],
         default: "registered"
     }
 }, { timestamps: true })

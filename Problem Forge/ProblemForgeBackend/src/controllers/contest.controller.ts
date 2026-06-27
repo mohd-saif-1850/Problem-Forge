@@ -2,7 +2,7 @@ import { Request, Response } from "express"
 import { AuthenticatedRequest } from "../middlewares/auth.middleware"
 import { contestValidationSchema } from "../validation/contest/contest.validation";
 import apiError from "../utils/apiError";
-import { Contest } from "../models/contest.model";
+import { Contest, IContest } from "../models/contest.model";
 import redis from "../config/redis";
 import { User } from "../models/user.model";
 import { hasPremiumAccess } from "../utils/hasPremium";
@@ -199,7 +199,8 @@ const createContest = async (req: AuthenticatedRequest, res: Response) => {
             startTime,
             endTime,
             rewardDistributionTime,
-            visibility
+            visibility,
+            creatorReputation: user.reputation
         }], { session })
 
         if (!contest) {
@@ -625,8 +626,10 @@ const submitContest = async (req: AuthenticatedRequest, res: Response) => {
             acceptedAt:
                 status === "accepted"
                     ? new Date()
-                    : undefined
+                    : undefined   
         });
+
+        isRegistered.status = status === "accepted" ? "completed" : "running"
     } else {
         submission.sourceCode = sourceCode;
         submission.language = language;
@@ -641,6 +644,7 @@ const submitContest = async (req: AuthenticatedRequest, res: Response) => {
             !submission.acceptedAt
         ) {
             submission.acceptedAt = new Date();
+            isRegistered.status = "completed"
         }
 
         await submission.save();
@@ -708,11 +712,871 @@ const getContestLeaderboard = async (
     );
 };
 
+const cancelContest = async (req: AuthenticatedRequest, res: Response) => {
+    const userId = req.user._id
+    const role = req.user.role
 
+    const { cancelReason } = req.body
+    const { contestId } = req.params
+
+    if (cancelReason && cancelReason.trim().length > 500) {
+        throw new apiError(400, "Cancel reason must be under 500 characters")
+    }
+    if (!contestId) {
+        throw new apiError(400, "Contest Id is required")
+    }
+
+    const contest = await Contest.findById(contestId)
+
+    if (!contest) {
+        throw new apiError(400, "Contest not found")
+    }
+    if (contest.status === "cancelled") {
+        throw new apiError(400, "Contest is already cancelled")
+    }
+    if (!contest.createdBy.equals(userId) && role !== "admin") {
+        throw new apiError(404, "You are not authorized to cancel this contest")
+    }
+    if (contest.status !== "upcoming") {
+        throw new apiError(400, "You can't cancel the running and ended contest.")
+    }
+
+    const session = await mongoose.startSession()
+
+    try {
+        session.startTransaction();
+
+        contest.status = "cancelled";
+        contest.cancelReason = cancelReason?.trim() || "";
+
+        await contest.save({ session });
+
+        // User refund
+
+        const registeredUsers = await Registration.find({
+            contest: contest._id,
+            status: "registered"
+        }).session(session);
+
+        if (registeredUsers.length > 0) {
+            const bulkUpdates = registeredUsers.map((registration) => ({
+                updateOne: {
+                    filter: {
+                        _id: registration.participant
+                    },
+                    update: {
+                        $inc: {
+                            totalPoints: contest.participantEntryCost
+                        }
+                    }
+                }
+            }));
+
+            await User.bulkWrite(bulkUpdates, { session });
+
+            const history = registeredUsers.map((registration) => ({
+                user: registration.participant,
+                type: "contest",
+                points: contest.participantEntryCost,
+                reason: "Contest Cancelled Refund",
+                metadata: {
+                    contestId: contest._id
+                }
+            }));
+
+            await PointsHistory.insertMany(history, { session });
+
+            const notifications = registeredUsers.map((registration) => ({
+                recipient: registration.participant,
+                title: "Contest Cancelled",
+                message: `The contest "${contest.title}" has been cancelled.Your ${contest.participantEntryCost} points have been refunded.`,
+                type: "contest",
+                metadata: {
+                    contestId: contest._id
+                }
+            }));
+
+            await Registration.updateMany(
+                {
+                    contest: contest._id,
+                    status: "registered"
+                },
+                {
+                    $set: {
+                        status: "cancelled"
+                    }
+                },
+                { session }
+            );
+
+            await Notification.insertMany(notifications, { session });
+        }
+
+        // Creator refund
+        const creatorRefund =
+            role === "admin"
+                ? contest.creatorEntryCost
+                : Math.floor(contest.creatorEntryCost * 0.75);
+
+        const penalty =
+            contest.creatorEntryCost - creatorRefund;
+
+        await User.findByIdAndUpdate(
+            contest.createdBy,
+            {
+                $inc: {
+                    totalPoints: creatorRefund
+                }
+            },
+            { session }
+        );
+
+        await PointsHistory.create(
+            [{
+                user: contest.createdBy,
+                type: "contest",
+                points: creatorRefund,
+                reason:
+                    role === "admin"
+                        ? "Contest Creation Refund"
+                        : `Contest Creation Refund (25% Penalty: ${penalty} Points)`,
+                metadata: {
+                    contestId: contest._id
+                }
+            }],
+            { session }
+        );
+
+        await Notification.create(
+            [{
+                recipient: contest.createdBy,
+                title:
+                    role === "admin"
+                        ? "Contest Cancelled"
+                        : "Contest Cancelled with Penalty",
+                message:
+                    role === "admin"
+                        ? `Your contest "${contest.title}" was cancelled by an administrator. Your ${creatorRefund} points have been refunded.`
+                        : `You cancelled your contest "${contest.title}". A 25% penalty (${penalty} points) was applied. ${creatorRefund} points have been refunded.`,
+                type: "contest",
+                metadata: {
+                    contestId: contest._id
+                }
+            }],
+            { session }
+        );
+
+        await Registration.updateMany(
+            {
+                contest: contest._id,
+                status: "registered"
+            },
+            {
+                $set: {
+                    status: "cancelled"
+                }
+            },
+            { session }
+        );
+
+        await session.commitTransaction();
+
+        return res.status(200).json(
+            new apiResponse(200, "Contest cancelled", contest)
+        )
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+    } finally {
+        session.endSession();
+    }
+
+}
+
+const getMyContests = async (
+    req: AuthenticatedRequest,
+    res: Response
+) => {
+    const userId = req.user._id;
+
+    const page = Math.max(Number(req.query.page) || 1, 1);
+    const limit = Math.min(Math.max(Number(req.query.limit) || 10, 1), 50);
+    const skip = (page - 1) * limit;
+
+    const {
+        status,
+        difficulty,
+        search,
+        sortBy
+    } = req.query;
+
+    const filter: any = {
+        createdBy: userId
+    };
+
+    if (
+        status &&
+        ["upcoming", "running", "ended", "cancelled"].includes(status as string)
+    ) {
+        filter.status = status;
+    }
+
+    if (
+        difficulty &&
+        ["easy", "medium", "hard"].includes(
+            (difficulty as string).toLowerCase()
+        )
+    ) {
+        filter.difficulty = (difficulty as string).toLowerCase();
+    }
+
+    if (search?.toString().trim()) {
+        filter.title = {
+            $regex: search.toString().trim(),
+            $options: "i"
+        };
+    }
+
+    let sort: any = {
+        createdAt: -1
+    };
+
+    switch (sortBy) {
+        case "latest":
+            sort = {
+                createdAt: -1
+            };
+            break;
+
+        case "oldest":
+            sort = {
+                createdAt: 1
+            };
+            break;
+
+        case "participants":
+            sort = {
+                totalParticipants: -1,
+                createdAt: -1
+            };
+            break;
+
+        case "reputation":
+            sort = {
+                creatorReputation: -1,
+                createdAt: -1
+            };
+            break;
+    }
+
+    const [contests, totalContests] = await Promise.all([
+        Contest.find(filter)
+            .populate(
+                "createdBy",
+                "username profilePicture reputation"
+            )
+            .sort(sort)
+            .skip(skip)
+            .limit(limit),
+
+        Contest.countDocuments(filter)
+    ]);
+
+    return res.status(200).json(
+        new apiResponse(
+            200,
+            "Your contests fetched successfully.",
+            {
+                contests,
+                currentPage: page,
+                totalPages: Math.ceil(totalContests / limit),
+                totalContests
+            }
+        )
+    );
+
+};
+
+const getAllContests = async (
+    req: AuthenticatedRequest,
+    res: Response
+) => {
+    const page = Math.max(Number(req.query.page) || 1, 1);
+    const limit = Math.min(Math.max(Number(req.query.limit) || 10, 1), 50);
+    const skip = (page - 1) * limit;
+
+    const {
+        status,
+        difficulty,
+        search
+    } = req.query;
+
+    const filter: any = {};
+
+    if (
+        status &&
+        ["upcoming", "running", "ended", "cancelled"].includes(status as string)
+    ) {
+        filter.status = status;
+    }
+
+    if (
+        difficulty &&
+        ["easy", "medium", "hard"].includes(
+            (difficulty as string).toLowerCase()
+        )
+    ) {
+        filter.difficulty = (difficulty as string).toLowerCase();
+    }
+
+    if (search) {
+        filter.title = {
+            $regex: search,
+            $options: "i"
+        };
+    }
+
+    const [contests, totalContests] = await Promise.all([
+        Contest.find(filter)
+            .populate(
+                "createdBy",
+                "username profilePicture totalPoints reputation"
+            )
+            .sort({
+                creatorReputation: -1,
+                createdAt: -1
+            })
+            .skip(skip)
+            .limit(limit),
+
+        Contest.countDocuments(filter)
+    ]);
+
+    return res.status(200).json(
+        new apiResponse(
+            200,
+            "Contests fetched successfully.",
+            {
+                contests,
+                currentPage: page,
+                totalPages: Math.ceil(totalContests / limit),
+                totalContests
+            }
+        )
+    );
+
+};
+
+const filterContests = async (
+    req: Request,
+    res: Response
+) => {
+    const page = Math.max(Number(req.query.page) || 1, 1);
+    const limit = Math.min(Math.max(Number(req.query.limit) || 10, 1), 50);
+    const skip = (page - 1) * limit;
+
+    const {
+        difficulty,
+        status,
+        search,
+        sortBy
+    } = req.query;
+
+    const filter: any = {};
+
+    if (
+        difficulty &&
+        ["easy", "medium", "hard"].includes(
+            (difficulty as string).toLowerCase()
+        )
+    ) {
+        filter.difficulty = (difficulty as string).toLowerCase();
+    }
+
+    if (
+        status &&
+        ["upcoming", "running"].includes(
+            status as string
+        )
+    ) {
+        filter.status = status;
+    }
+
+    if (search) {
+        filter.title = {
+            $regex: search,
+            $options: "i"
+        };
+    }
+
+    let sort: any = {
+        creatorReputation: -1,
+        totalParticipants: -1,
+        createdAt: -1
+    };
+
+    switch (sortBy) {
+        case "latest":
+            sort = {
+                createdAt: -1
+            };
+            break;
+
+        case "oldest":
+            sort = {
+                createdAt: 1
+            };
+            break;
+
+        case "participants":
+            sort = {
+                totalParticipants: -1
+            };
+            break;
+
+        case "reputation":
+            sort = {
+                creatorReputation: -1,
+                totalParticipants: -1
+            };
+            break;
+    }
+
+    const [contests, totalContests] = await Promise.all([
+        Contest.find(filter)
+            .populate(
+                "createdBy",
+                "username profilePicture reputation totalPoints"
+            )
+            .sort(sort)
+            .skip(skip)
+            .limit(limit),
+
+        Contest.countDocuments(filter)
+    ]);
+
+    return res.status(200).json(
+        new apiResponse(
+            200,
+            "Filtered contests fetched successfully.",
+            {
+                contests,
+                currentPage: page,
+                totalPages: Math.ceil(totalContests / limit),
+                totalContests
+            }
+        )
+    );
+
+};
+
+const getContest = async (
+    req: AuthenticatedRequest,
+    res: Response
+) => {
+    const userId = req.user._id;
+    const role = req.user.role;
+
+    const { contestId } = req.params;
+
+    if (!contestId) {
+        throw new apiError(400, "Contest ID is required");
+    }
+
+    const contest = await Contest.findById(contestId)
+        .populate(
+            "createdBy",
+            "username profilePicture reputation totalPoints"
+        );
+
+    if (!contest) {
+        throw new apiError(404, "Contest not found");
+    }
+
+    // Hide cancelled contests from normal users
+    if (
+        contest.status === "cancelled" &&
+        !contest.createdBy._id.equals(userId) &&
+        role !== "admin"
+    ) {
+        throw new apiError(404, "Contest not found");
+    }
+
+    // Followers-only visibility
+    if (
+        contest.visibility === "followers" &&
+        !contest.createdBy._id.equals(userId)
+    ) {
+        const isFollower = await Follow.exists({
+            follower: userId,
+            following: contest.createdBy._id
+        });
+
+        if (!isFollower) {
+            throw new apiError(
+                403,
+                "This contest is available only to followers."
+            );
+        }
+    }
+
+    const registration = await Registration.findOne({
+        contest: contest._id,
+        participant: userId
+    });
+
+    const isRegistered =
+        registration?.status === "registered";
+
+    const isCreator =
+        contest.createdBy._id.equals(userId);
+
+    const canJoin =
+        contest.status === "upcoming" &&
+        !isRegistered &&
+        !isCreator;
+
+    return res.status(200).json(
+        new apiResponse(
+            200,
+            "Contest fetched successfully.",
+            {
+                contest,
+                isCreator,
+                isRegistered,
+                canJoin,
+                registration
+            }
+        )
+    );
+};
+
+const updateContest = async (
+    req: AuthenticatedRequest,
+    res: Response
+) => {
+    const userId = req.user._id;
+    const role = req.user.role;
+
+    const { contestId } = req.params;
+
+    if (!contestId) {
+        throw new apiError(
+            400,
+            "Contest ID is required"
+        );
+    }
+
+    const validationResult = contestValidationSchema.safeParse(
+        req.body
+    );
+
+    if (!validationResult.success) {
+        throw new apiError(
+            400,
+            validationResult.error.issues[0].message
+        );
+    }
+
+    const {
+        title,
+        problemStatement,
+        description,
+
+        tags,
+
+        examples,
+
+        constraints,
+
+        visibleTestCases,
+
+        hiddenTestCases
+    } = validationResult.data;
+
+    const contest = await Contest.findById(contestId);
+
+    if (!contest) {
+        throw new apiError(
+            404,
+            "Contest not found"
+        );
+    }
+
+    if (
+        !contest.createdBy.equals(userId) &&
+        role !== "admin"
+    ) {
+        throw new apiError(
+            403,
+            "You are not authorized to update this contest."
+        );
+    }
+
+    if (contest.status !== "upcoming") {
+        throw new apiError(
+            400,
+            "Only upcoming contests can be updated."
+        );
+    }
+
+    if (
+        title.trim().toLowerCase() !==
+        contest.title.trim().toLowerCase()
+    ) {
+        const existedTitle = await Contest.findOne({
+            title,
+            startTime: contest.startTime,
+            _id: {
+                $ne: contest._id
+            }
+        });
+
+        if (existedTitle) {
+            throw new apiError(
+                409,
+                "A contest with this title already exists."
+            );
+        }
+
+        contest.title = title.trim();
+
+        contest.slug = slugify(title, {
+            lower: true,
+            strict: true,
+            trim: true
+        });
+    }
+
+    contest.problemStatement = problemStatement;
+    contest.description = description;
+
+    contest.tags = tags;
+
+    contest.examples = examples;
+
+    contest.constraints = constraints;
+
+    contest.visibleTestCases = visibleTestCases;
+
+    contest.hiddenTestCases = hiddenTestCases;
+
+    await contest.save()
+
+    return res.status(200).json(
+        new apiResponse(200, "Contest updated successfully", contest)
+    )
+}
+
+const getContestParticipants = async (
+    req: AuthenticatedRequest,
+    res: Response
+) => {
+    const userId = req.user._id;
+    const role = req.user.role;
+
+    const { contestId } = req.params;
+
+    if (!contestId) {
+        throw new apiError(
+            400,
+            "Contest ID is required"
+        );
+    }
+
+    const contest = await Contest.findById(contestId);
+
+    if (!contest) {
+        throw new apiError(
+            404,
+            "Contest not found"
+        );
+    }
+
+    if (
+        !contest.createdBy.equals(userId) &&
+        role !== "admin"
+    ) {
+        throw new apiError(
+            403,
+            "You are not authorized to view the participants."
+        );
+    }
+
+    const page = Math.max(
+        Number(req.query.page) || 1,
+        1
+    );
+
+    const limit = Math.min(
+        Math.max(Number(req.query.limit) || 20, 1),
+        50
+    );
+
+    const skip = (page - 1) * limit;
+
+    const [participants, totalParticipants] =
+        await Promise.all([
+            Registration.find({
+                contest: contest._id,
+                status: "registered"
+            })
+                .populate(
+                    "participant",
+                    "username profilePicture reputation totalPoints"
+                )
+                .sort({
+                    registeredAt: -1
+                })
+                .skip(skip)
+                .limit(limit),
+
+            Registration.countDocuments({
+                contest: contest._id,
+                status: "registered"
+            })
+        ]);
+
+    return res.status(200).json(
+        new apiResponse(
+            200,
+            "Contest participants fetched successfully.",
+            {
+                participants,
+                currentPage: page,
+                totalPages: Math.ceil(
+                    totalParticipants / limit
+                ),
+                totalParticipants
+            }
+        )
+    );
+
+};
+
+const getRegisteredContests = async (
+    req: AuthenticatedRequest,
+    res: Response
+) => {
+    const userId = req.user._id;
+
+    const page = Math.max(Number(req.query.page) || 1, 1);
+    const limit = Math.min(Math.max(Number(req.query.limit) || 10, 1), 50);
+    const skip = (page - 1) * limit;
+
+    const {
+        status,
+        difficulty,
+        search,
+        sortBy
+    } = req.query;
+
+    const contestFilter: any = {};
+
+    if (
+        status &&
+        ["upcoming", "running", "ended", "cancelled"].includes(status as string)
+    ) {
+        contestFilter.status = status;
+    }
+
+    if (
+        difficulty &&
+        ["easy", "medium", "hard"].includes(
+            (difficulty as string).toLowerCase()
+        )
+    ) {
+        contestFilter.difficulty = (difficulty as string).toLowerCase();
+    }
+
+    if (search?.toString().trim()) {
+        contestFilter.title = {
+            $regex: search.toString().trim(),
+            $options: "i"
+        };
+    }
+
+    let sort: any = {
+        createdAt: -1
+    };
+
+    switch (sortBy) {
+        case "latest":
+            sort = {
+                createdAt: -1
+            };
+            break;
+
+        case "oldest":
+            sort = {
+                createdAt: 1
+            };
+            break;
+
+        case "participants":
+            sort = {
+                totalParticipants: -1,
+                createdAt: -1
+            };
+            break;
+
+        case "reputation":
+            sort = {
+                creatorReputation: -1,
+                createdAt: -1
+            };
+            break;
+    }
+
+    const registrations = await Registration.find({
+        participant: userId,
+    }).select("contest");
+
+    const contestIds = registrations.map(
+        (registration) => registration.contest
+    );
+
+    contestFilter._id = {
+        $in: contestIds
+    };
+
+    const [contests, totalContests] = await Promise.all([
+        Contest.find(contestFilter)
+            .populate(
+                "createdBy",
+                "username profilePicture reputation"
+            )
+            .sort(sort)
+            .skip(skip)
+            .limit(limit),
+
+        Contest.countDocuments(contestFilter)
+    ]);
+
+    return res.status(200).json(
+        new apiResponse(
+            200,
+            "Registered contests fetched successfully.",
+            {
+                contests,
+                currentPage: page,
+                totalPages: Math.ceil(totalContests / limit),
+                totalContests
+            }
+        )
+    );
+
+};
 
 export {
     createContest,
     registerContest,
     submitContest,
-    getContestLeaderboard
+    getContestLeaderboard,
+    cancelContest,
+    getMyContests,
+    getAllContests,
+    filterContests,
+    getContest,
+    updateContest
 }

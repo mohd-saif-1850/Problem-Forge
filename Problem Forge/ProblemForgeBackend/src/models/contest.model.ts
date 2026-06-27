@@ -120,6 +120,8 @@ export interface IContest extends Document {
     rating: IContestRating;
 
     cancelReason?: string;
+
+    creatorReputation: number;
 }
 
 const contestSchema = new Schema<IContest>({
@@ -425,6 +427,11 @@ const contestSchema = new Schema<IContest>({
         trim: true,
         maxlength: [500, "Cancel reason cannot exceed 500 characters"],
         default: ""
+    },
+
+    creatorReputation: {
+        type: Number,
+        default: 0
     }
 }, { timestamps: true })
 

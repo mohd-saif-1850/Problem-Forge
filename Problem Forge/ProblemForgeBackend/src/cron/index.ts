@@ -1,5 +1,6 @@
-import "./contestStatus.contest"
-
+import "./contestStatus.cron"
+import "./cancelContest.cron"
+import "./rewardDistribution.cron"
 
 
 
