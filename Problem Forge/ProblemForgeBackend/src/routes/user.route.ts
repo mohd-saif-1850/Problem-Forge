@@ -26,6 +26,8 @@ import {
 import verifyJWT from "../middlewares/auth.middleware";
 import upload from "../middlewares/multer.middleware";
 import { followUser, getFollowers, getFollowing, isFollowing, unfollowUser } from "../controllers/follow.controller";
+import { getPointHistory } from "../controllers/point.controller";
+import { deleteAllNotifications, getMyNotifications, getNotification, getUnreadNotificationsCount } from "../controllers/notification.controller";
 
 const router = Router();
 
@@ -68,5 +70,14 @@ router.get("/:username/followers",verifyJWT,getFollowers)
 router.get("/:username/following",verifyJWT,getFollowing)
 router.get("/:username/isFollowing",verifyJWT,isFollowing)
 router.get("/:username/search",verifyJWT,searchFollowUsers)
+
+// Point routes
+router.get("/get-point-history",verifyJWT,getPointHistory)
+
+// Notification routes
+router.get("/notifications",verifyJWT,getMyNotifications)
+router.get("/notification/:notificationId",verifyJWT,getNotification)
+router.get("/unread-notifications-count",verifyJWT,getUnreadNotificationsCount)
+router.delete("/delete-notifications",verifyJWT,deleteAllNotifications)
 
 export default router;

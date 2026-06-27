@@ -1,4 +1,4 @@
-import { Request,Response } from "express";
+import { Request, Response } from "express";
 import { AuthenticatedRequest } from "../middlewares/auth.middleware";
 import { problemValidationSchema, updateProblemSchema } from "../validation/problem/problemValidation";
 import apiError from "../utils/apiError";
@@ -9,6 +9,8 @@ import getUserFromCacheOrDB from "../utils/getUserFromRedisOrDb";
 import { Problem } from "../models/problem.model";
 import slugify from "slugify";
 import { hasPremiumAccess } from "../utils/hasPremium";
+import { Submission } from "../models/submission.model";
+import { createNotification } from "../services/notification.service";
 
 const createProblem = async (req: AuthenticatedRequest, res: Response) => {
     const createdBy = req.user._id;
@@ -31,15 +33,15 @@ const createProblem = async (req: AuthenticatedRequest, res: Response) => {
 
     const validationResult = problemValidationSchema.safeParse(req.body)
 
-    if(!validationResult.success){
-        throw new apiError(400,validationResult.error.issues[0].message)
+    if (!validationResult.success) {
+        throw new apiError(400, validationResult.error.issues[0].message)
     }
 
     const createdBeforeTtl = await redis.ttl(
         `created:problem:${createdBy}`
     )
 
-    if(createdBeforeTtl > 0){
+    if (createdBeforeTtl > 0) {
         const minutes = Math.floor(createdBeforeTtl / 60);
         const seconds = createdBeforeTtl % 60;
         throw new apiError(
@@ -50,11 +52,11 @@ const createProblem = async (req: AuthenticatedRequest, res: Response) => {
 
     const user = await getUserFromCacheOrDB(createdBy)
 
-    if(!user){
-        throw new apiError(404,"User not found")
+    if (!user) {
+        throw new apiError(404, "User not found")
     }
-    if(!hasPremiumAccess(user)){
-        throw new apiError(403,"Subscription required to create a problem.")
+    if (!hasPremiumAccess(user)) {
+        throw new apiError(403, "Subscription required to create a problem.")
     }
 
     const existingProblem = await Problem.findOne({
@@ -94,7 +96,7 @@ const createProblem = async (req: AuthenticatedRequest, res: Response) => {
 
     const problem = await Problem.create({
         problemNumber,
-        
+
         title,
         slug,
         problemStatement,
@@ -133,7 +135,7 @@ const createProblem = async (req: AuthenticatedRequest, res: Response) => {
 
 const updateProblem = async (req: AuthenticatedRequest, res: Response) => {
     const userId = req.user._id;
-    const {problemId} = req.params
+    const { problemId } = req.params
 
     const {
         title,
@@ -146,14 +148,14 @@ const updateProblem = async (req: AuthenticatedRequest, res: Response) => {
         memoryLimit
     } = req.body;
 
-    if(!problemId){
-        throw new apiError(400,"Problem id is required")
+    if (!problemId) {
+        throw new apiError(400, "Problem id is required")
     }
 
     const validationResult = updateProblemSchema.safeParse(req.body)
 
-    if(!validationResult.success){
-        throw new apiError(400,validationResult.error.issues[0].message)
+    if (!validationResult.success) {
+        throw new apiError(400, validationResult.error.issues[0].message)
     }
 
     const existingProblem = await Problem.findOne({
@@ -170,11 +172,11 @@ const updateProblem = async (req: AuthenticatedRequest, res: Response) => {
 
     const problem = await Problem.findById(problemId)
 
-    if(!problem){
-        throw new apiError(404,"Problem not found")
+    if (!problem) {
+        throw new apiError(404, "Problem not found")
     }
-    if(!problem.createdBy.equals(userId) && req.user.role !== "admin"){
-        throw new apiError(403,"You are not the creator. You can't update the problem details.")
+    if (!problem.createdBy.equals(userId) && req.user.role !== "admin") {
+        throw new apiError(403, "You are not the creator. You can't update the problem details.")
     }
 
     const slug = slugify(title, {
@@ -202,7 +204,7 @@ const updateProblem = async (req: AuthenticatedRequest, res: Response) => {
     await problem.save()
 
     return res.status(200).json(
-        new apiResponse(200,"Problem updated successfully")
+        new apiResponse(200, "Problem updated successfully")
     )
 
 }
@@ -213,19 +215,19 @@ const getCurrentProblem = async (
 ) => {
     const userId = req.user._id
 
-    const {slug} = req.params
+    const { slug } = req.params
 
-    if(!slug){
-        throw new apiError(400,"Problem slug is required")
+    if (!slug) {
+        throw new apiError(400, "Problem slug is required")
     }
 
-    if(!userId){
-        throw new apiError(404,"User Id required")
+    if (!userId) {
+        throw new apiError(404, "User Id required")
     }
 
     const user = await User.findById(userId)
-    if(!user){
-        throw new apiError(400,"User not found")
+    if (!user) {
+        throw new apiError(400, "User not found")
     }
 
     const problem = await Problem
@@ -239,8 +241,8 @@ const getCurrentProblem = async (
             "Problem not found"
         );
     }
-    if(problem.isPremium && !hasPremiumAccess(user)){
-        throw new apiError(403,"You need subscription for this problem.")
+    if (problem.isPremium && !hasPremiumAccess(user)) {
+        throw new apiError(403, "You need subscription for this problem.")
     }
 
     return res.status(200).json(
@@ -419,6 +421,59 @@ const getMyProblems = async (
     );
 };
 
+const deleteProblem = async (
+    req: AuthenticatedRequest,
+    res: Response
+) => {
+    const userId = req.user._id;
+
+    const { problemId } = req.params;
+
+    const problem = await Problem.findById(problemId);
+
+    if (!problem) {
+        throw new apiError(404, "Problem not found.");
+    }
+
+    const isCreator = problem.createdBy.toString() === userId.toString();
+    const isAdmin = req.user.role === "admin";
+
+    if (!isCreator && !isAdmin) {
+        throw new apiError(
+            403,
+            "You are not authorized to delete this problem."
+        );
+    }
+
+    const participants = await Submission.distinct("submittedBy", {
+        problem: problem._id
+    });
+
+    await Promise.all([
+        ...participants.map(participant =>
+            createNotification({
+                recipient: participant,
+                title: "Problem Removed",
+                message: `The problem "${problem.title}" has been removed and is no longer available. Thank you for your participation.`,
+                type: "problem",
+                metadata: {}
+            })
+        ),
+
+        Submission.deleteMany({
+            problem: problem._id
+        }),
+
+        problem.deleteOne()
+    ]);
+
+    return res.status(200).json(
+        new apiResponse(
+            200,
+            "Problem deleted successfully."
+        )
+    );
+};
 
 export {
     createProblem,
@@ -427,5 +482,6 @@ export {
     searchProblems,
     getAllProblems,
     getMainProblems,
-    getMyProblems
+    getMyProblems,
+    deleteProblem
 }

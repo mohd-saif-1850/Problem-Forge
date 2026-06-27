@@ -3,6 +3,7 @@ import mongoose, { Document, Schema } from "mongoose";
 export type NotificationType =
     | "follow"
     | "badge"
+    | "problem"
     | "submission"
     | "contest"
     | "system"

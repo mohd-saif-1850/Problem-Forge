@@ -893,6 +893,47 @@ const cancelContest = async (req: AuthenticatedRequest, res: Response) => {
 
 }
 
+const deleteContest = async (
+    req: AuthenticatedRequest,
+    res: Response
+) => {
+    const userId = req.user._id;
+
+    const { contestId } = req.params;
+
+    const contest = await Contest.findById(contestId);
+
+    if (!contest) {
+        throw new apiError(404, "Contest not found.");
+    }
+
+    const isCreator = contest.createdBy.toString() === userId.toString();
+    const isAdmin = req.user.role === "admin";
+
+    if (!isCreator && !isAdmin) {
+        throw new apiError(
+            403,
+            "You are not authorized to delete this contest."
+        );
+    }
+
+    if (contest.status !== "cancelled") {
+        throw new apiError(
+            400,
+            "Contest must be cancelled before it can be deleted."
+        );
+    }
+
+    await contest.deleteOne();
+
+    return res.status(200).json(
+        new apiResponse(
+            200,
+            "Contest deleted successfully."
+        )
+    );
+};
+
 const getMyContests = async (
     req: AuthenticatedRequest,
     res: Response
@@ -1574,6 +1615,7 @@ export {
     submitContest,
     getContestLeaderboard,
     cancelContest,
+    deleteContest,
     getMyContests,
     getAllContests,
     filterContests,

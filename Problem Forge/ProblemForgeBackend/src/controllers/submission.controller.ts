@@ -373,7 +373,91 @@ const runProblem = async (req: AuthenticatedRequest, res: Response) => {
     );
 }
 
+const getMySubmissions = async (
+    req: AuthenticatedRequest,
+    res: Response
+) => {
+    const userId = req.user._id;
+
+    if (!userId) {
+        throw new apiError(404, "User Id not found.");
+    }
+
+    const currentPage = Math.max(Number(req.query.page) || 1, 1);
+    const limit = 20;
+    const skip = (currentPage - 1) * limit;
+
+    const [submissions, totalSubmissions] = await Promise.all([
+        Submission.find({
+            submittedBy: userId
+        })
+            .populate("problem", "title slug difficulty")
+            .sort({
+                createdAt: -1
+            })
+            .skip(skip)
+            .limit(limit),
+
+        Submission.countDocuments({
+            submittedBy: userId
+        })
+    ]);
+
+    return res.status(200).json(
+        new apiResponse(
+            200,
+            "Submissions fetched successfully.",
+            {
+                submissions,
+                currentPage,
+                totalPages: Math.ceil(totalSubmissions / limit),
+                totalSubmissions,
+                hasNextPage: currentPage * limit < totalSubmissions,
+                hasPreviousPage: currentPage > 1
+            }
+        )
+    );
+};
+
+const getSubmission = async (
+    req: AuthenticatedRequest,
+    res: Response
+) => {
+    const userId = req.user._id;
+
+    const { submissionId } = req.params;
+
+    if (!userId) {
+        throw new apiError(404, "User Id not found.");
+    }
+
+    const submission = await Submission.findOne({
+        _id: submissionId,
+        submittedBy: userId
+    }).populate(
+        "problem",
+        "title slug difficulty"
+    );
+
+    if (!submission) {
+        throw new apiError(
+            404,
+            "Submission not found."
+        );
+    }
+
+    return res.status(200).json(
+        new apiResponse(
+            200,
+            "Submission fetched successfully.",
+            submission
+        )
+    );
+};
+
 export {
     submitProblem,
-    runProblem
+    runProblem,
+    getMySubmissions,
+    getSubmission
 }
