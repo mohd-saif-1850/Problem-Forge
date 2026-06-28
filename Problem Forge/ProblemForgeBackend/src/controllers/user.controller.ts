@@ -1222,8 +1222,8 @@ const getSolveHeatmap = async (
         username
     }).select("_id")
 
-    if(!user){
-        throw new apiError(404,"User not found")
+    if (!user) {
+        throw new apiError(404, "User not found")
     }
 
     const startDate = new Date();
@@ -1341,11 +1341,11 @@ const searchFollowUsers = async (
     const follows = await Follow.find(
         searchType === "followers"
             ? {
-                  following: user._id
-              }
+                following: user._id
+            }
             : {
-                  follower: user._id
-              }
+                follower: user._id
+            }
     ).populate({
         path:
             searchType === "followers"
@@ -1446,6 +1446,43 @@ const getProfile = async (
     );
 };
 
+const toggleShowReputation = async (req: AuthenticatedRequest, res: Response) => {
+    const userId = req.user._id
+
+    if (!userId) {
+        throw new apiError(404, "User Id is required")
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+        userId,
+        [
+            {
+                $set: {
+                    showReputation: {
+                        $not: "$showReputation"
+                    }
+                }
+            }
+        ],
+        {
+            new: true,
+            runValidators: true,
+        }
+    ).select("showReputation");
+
+    if(!updatedUser){
+        throw new apiError(500,"Server failed to update")
+    }
+
+    return res.status(200).json(
+        new apiResponse(
+            200,
+            "Show reputation toggled successfully.",
+            { showReputation: updatedUser.showReputation }
+        )
+    );
+}
+
 export {
     registerUser,
     verifyEmail,
@@ -1468,5 +1505,6 @@ export {
     searchUsers,
     getSolveHeatmap,
     searchFollowUsers,
-    getProfile
+    getProfile,
+    toggleShowReputation
 }

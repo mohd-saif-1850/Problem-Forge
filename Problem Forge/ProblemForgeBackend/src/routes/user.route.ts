@@ -21,7 +21,8 @@ import {
     getSolveHeatmap,
     searchFollowUsers,
     searchUsers,
-    getProfile
+    getProfile,
+    toggleShowReputation
 } from "../controllers/user.controller";
 import verifyJWT from "../middlewares/auth.middleware";
 import upload from "../middlewares/multer.middleware";
@@ -45,6 +46,7 @@ router.patch("/change-profile-picture",verifyJWT,upload.single("profilePicture")
 router.patch("/change-name",verifyJWT, changeName),
 router.patch("/change-username",verifyJWT, changeUsername),
 router.patch("/change-bio",verifyJWT, changeBio)
+router.patch("/toggle-show-reputation",verifyJWT, toggleShowReputation)
 
 router.get("/search-user",verifyJWT,searchUsers)
 router.get("/get-profile",verifyJWT,getProfile)
