@@ -132,10 +132,6 @@ contestSubmissionSchema.index({
     status: 1
 });
 
-contestSubmissionSchema.index({
-    participant: 1
-});
-
 export const ContestSubmission = mongoose.model<IContestSubmission>(
     "ContestSubmission",
     contestSubmissionSchema

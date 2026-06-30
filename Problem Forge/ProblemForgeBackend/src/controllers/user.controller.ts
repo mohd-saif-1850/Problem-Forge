@@ -237,13 +237,8 @@ const login = async (req: Request, res: Response) => {
     if (user.twoStepVerification) {
         await sendTwoStepVerification(user)
 
-        return res.status(200).json(
-            new apiResponse(
-                200,
-                "Please confirm your account",
-                email
-            )
-        )
+        return res.status(200).redirect(`${process.env.WEB_URL}/verify-two-step-verification`)
+        
     }
 
     await handleDeviceLogin(
@@ -291,12 +286,12 @@ const verifyTwoStepVerification = async (
     req: Request,
     res: Response
 ) => {
-    const { email, code } = req.body
+    const { email, username, code } = req.body
 
-    if (!email) {
+    if (!email && !username) {
         throw new apiError(
             400,
-            "Please provide email"
+            "Please provide either email or username"
         )
     }
 
@@ -307,8 +302,22 @@ const verifyTwoStepVerification = async (
         )
     }
 
+    const user = await User.findOne({
+        $or: [
+            {email},
+            {username}
+        ]
+    })
+
+    if (!user) {
+        throw new apiError(
+            404,
+            "User doesn't exist"
+        )
+    }
+
     const storedCode = await redis.get(
-        `twoStepVerification:code:${email}`
+        `twoStepVerification:code:${user.email}`
     )
 
     if (!storedCode) {
@@ -322,17 +331,6 @@ const verifyTwoStepVerification = async (
         throw new apiError(
             401,
             "Invalid verification code"
-        )
-    }
-
-    const user = await User.findOne({
-        email
-    })
-
-    if (!user) {
-        throw new apiError(
-            404,
-            "User doesn't exist"
         )
     }
 

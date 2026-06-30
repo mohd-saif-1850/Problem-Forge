@@ -110,13 +110,11 @@ const githubCallback = async (req: Request, res: Response) => {
     if(user.twoStepVerification){
         await sendTwoStepVerification(user)
 
-        return res.status(200).json(
-            new apiResponse(
-                200,
-                "Please confirm your two-step verification code.",
-                {email : user.email}
-            )
-        )
+        return res.redirect(
+        `${process.env.FRONTEND_URL}/verify-two-step-verification?identifier=${encodeURIComponent(
+            user.email ?? user.username
+        )}`
+    );
     }
 
     await handleDeviceLogin(
@@ -145,18 +143,7 @@ const githubCallback = async (req: Request, res: Response) => {
         ...cookieOptions,
         maxAge: 14 * 24 * 60 * 60 * 1000,
     })
-    .json(
-        new apiResponse(
-            200,
-            "User logged in successfully",
-            {
-                user: {
-                    _id: user._id,
-                    username: user.username,
-                },
-            }
-        )
-    )
+    .redirect(`${process.env.WEB_URL}/problems`);
 }
 
 export {
