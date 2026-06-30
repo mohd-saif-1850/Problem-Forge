@@ -14,7 +14,7 @@ export const sendTwoStepVerification =
             `twoStepVerification:code:${user.email}`
         )
 
-        if(ttl > 0){
+        if (ttl > 0) {
 
             const minutes = Math.max(
                 1,
@@ -27,10 +27,15 @@ export const sendTwoStepVerification =
             )
         }
 
-        const code = crypto
-            .randomBytes(2)
-            .toString("hex")
-            .toUpperCase()
+        const characters = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+        let code = "";
+
+        for (let i = 0; i < 4; i++) {
+            code += characters[
+                crypto.randomInt(characters.length)
+            ];
+        }
 
         await redis.set(
             `twoStepVerification:code:${user.email}`,
