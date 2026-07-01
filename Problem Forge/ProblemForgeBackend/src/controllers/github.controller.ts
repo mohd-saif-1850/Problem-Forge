@@ -111,7 +111,7 @@ const githubCallback = async (req: Request, res: Response) => {
         await sendTwoStepVerification(user)
 
         return res.redirect(
-        `${process.env.FRONTEND_URL}/verify-two-step-verification?identifier=${encodeURIComponent(
+        `${process.env.WEB_URL}/verify-two-step-verification?identifier=${encodeURIComponent(
             user.email ?? user.username
         )}`
     );

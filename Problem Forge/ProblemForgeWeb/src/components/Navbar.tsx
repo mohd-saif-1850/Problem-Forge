@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, memo, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { useAuth } from "../hooks/useAuth";
+import { useAuth } from "../context/AuthContext";
 
 type NavLink = {
   label: string;
@@ -49,6 +49,8 @@ const AuthDialog = memo(({ targetHref, onClose }: AuthDialogProps) => {
     if (e.target === overlayRef.current) onClose();
   };
 
+
+
   return (
     <div
       ref={overlayRef}
@@ -74,16 +76,16 @@ const AuthDialog = memo(({ targetHref, onClose }: AuthDialogProps) => {
         </p>
         <div className="flex flex-col gap-2.5">
           <button
-  onClick={() => navigate("/login", { state: { from: targetHref } })}
-  className="group relative w-full overflow-hidden cursor-pointer rounded-xl border border-white/10 py-2.5 text-sm font-medium text-white/70 transition-all duration-300 hover:border-cyan-500/50 hover:bg-cyan-500/5 hover:text-cyan-400 hover:shadow-[0_0_20px_rgba(34,211,238,0.12)] focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
-  aria-label="Go to login page"
->
-  <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-full" />
+            onClick={() => navigate("/login", { state: { from: targetHref } })}
+            className="group relative w-full overflow-hidden cursor-pointer rounded-xl border border-white/10 py-2.5 text-sm font-medium text-white/70 transition-all duration-300 hover:border-cyan-500/50 hover:bg-cyan-500/5 hover:text-cyan-400 hover:shadow-[0_0_20px_rgba(34,211,238,0.12)] focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+            aria-label="Go to login page"
+          >
+            <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-full" />
 
-  <span className="relative z-10">
-    Login
-  </span>
-</button>
+            <span className="relative z-10">
+              Login
+            </span>
+          </button>
           <button
             onClick={() => navigate("/register", { state: { from: targetHref } })}
             className="w-full cursor-pointer py-2.5 rounded-xl text-sm font-semibold text-black bg-cyan-400 hover:bg-cyan-300 transition-all duration-200 hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-cyan-400/50"
@@ -188,6 +190,15 @@ export const Navbar = memo(() => {
     navigate("/");
   }, [logout, navigate]);
 
+  // Avatar for user
+  const DEFAULT_PROFILE_PICTURE =
+    "https://res.cloudinary.com/dlzi244at/image/upload/v1763367677/defaultPersonImage_exseqc.avif";
+  const avatar =
+    user?.profilePicture &&
+      user.profilePicture !== DEFAULT_PROFILE_PICTURE
+      ? user.profilePicture
+      : user?.avatar;
+
   const isActive = (href: string) =>
     href === "/" ? location.pathname === "/" : location.pathname.startsWith(href);
 
@@ -222,11 +233,10 @@ export const Navbar = memo(() => {
                 key={link.href}
                 onClick={() => handleNavClick(link)}
                 aria-label={`Navigate to ${link.label}`}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/40 ${
-                  isActive(link.href)
-                    ? "bg-cyan-500/10 text-cyan-400"
-                    : "text-white/40 cursor-pointer hover:text-white/80 hover:bg-white/5"
-                }`}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/40 ${isActive(link.href)
+                  ? "bg-cyan-500/10 text-cyan-400"
+                  : "text-white/40 cursor-pointer hover:text-white/80 hover:bg-white/5"
+                  }`}
               >
                 {link.label}
               </button>
@@ -254,7 +264,7 @@ export const Navbar = memo(() => {
               </>
             ) : (
               <>
-                {user?.subscription === "free" && (
+                {user?.subscription?.plan === "free" && (
                   <button
                     onClick={() => navigate("/premium")}
                     aria-label="Upgrade to Premium"
@@ -266,13 +276,13 @@ export const Navbar = memo(() => {
 
                 <button
                   onClick={() => navigate("/notifications")}
-                  aria-label={`Notifications${user && user.unreadNotifications > 0 ? `, ${user.unreadNotifications} unread` : ""}`}
+                  aria-label={`Notifications${user && (user?.unreadNotifications ?? 0) > 0 ? `, ${user.unreadNotifications} unread` : ""}`}
                   className="relative p-2 text-white/40 hover:text-white/80 hover:bg-white/5 rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-white/20"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                   </svg>
-                  {user && user.unreadNotifications > 0 && (
+                  {user && (user?.unreadNotifications ?? 0) > 0 && (
                     <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-cyan-400" aria-hidden="true" />
                   )}
                 </button>
@@ -285,7 +295,7 @@ export const Navbar = memo(() => {
                     aria-haspopup="true"
                     className="flex items-center gap-2 px-2 py-1.5 rounded-xl hover:bg-white/5 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-white/20"
                   >
-                    <Avatar avatar={user?.avatar} username={user?.username ?? ""} />
+                    <Avatar avatar={avatar} username={user?.username ?? ""} />
                     <span className="text-sm text-white/60 font-medium hidden xl:block max-w-[100px] truncate">
                       {user?.username}
                     </span>
@@ -388,11 +398,10 @@ export const Navbar = memo(() => {
                 key={link.href}
                 onClick={() => handleNavClick(link)}
                 aria-label={`Navigate to ${link.label}`}
-                className={`w-full text-left px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/40 ${
-                  isActive(link.href)
-                    ? "bg-cyan-500/10 text-cyan-400"
-                    : "text-white/40 hover:text-white/80 hover:bg-white/5"
-                }`}
+                className={`w-full text-left px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/40 ${isActive(link.href)
+                  ? "bg-cyan-500/10 text-cyan-400"
+                  : "text-white/40 hover:text-white/80 hover:bg-white/5"
+                  }`}
               >
                 {link.label}
               </button>
@@ -419,7 +428,7 @@ export const Navbar = memo(() => {
               ) : (
                 <>
                   <div className="flex items-center gap-3 px-4 py-3 bg-white/[0.03] border border-white/[0.06] rounded-xl">
-                    <Avatar avatar={user?.avatar} username={user?.username ?? ""} size="sm" />
+                    <Avatar avatar={avatar} username={user?.username ?? ""} size="sm" />
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-white truncate">{user?.username}</p>
                       <p className="text-xs text-white/35 truncate">{user?.email}</p>
@@ -428,18 +437,18 @@ export const Navbar = memo(() => {
 
                   <button
                     onClick={() => { navigate("/notifications"); setMobileOpen(false); }}
-                    aria-label={`Notifications${user && user.unreadNotifications > 0 ? `, ${user.unreadNotifications} unread` : ""}`}
+                    aria-label={`Notifications${user && (user?.unreadNotifications ?? 0) > 0 ? `, ${user.unreadNotifications} unread` : ""}`}
                     className="w-full text-left px-4 py-3 rounded-xl text-sm font-medium text-white/40 hover:text-white/80 hover:bg-white/5 transition-all duration-200 flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-white/20"
                   >
                     <span>Notifications</span>
-                    {user && user.unreadNotifications > 0 && (
+                    {user && (user?.unreadNotifications ?? 0) > 0 && (
                       <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-cyan-400/10 text-cyan-400 border border-cyan-400/20">
                         {user.unreadNotifications}
                       </span>
                     )}
                   </button>
 
-                  {user?.subscription === "free" && (
+                  {user?.subscription?.plan === "free" && (
                     <button
                       onClick={() => { navigate("/premium"); setMobileOpen(false); }}
                       aria-label="Upgrade to Premium"

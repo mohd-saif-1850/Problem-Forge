@@ -1,54 +1,69 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import type {
+    ClipboardEvent,
+    KeyboardEvent,
+    SubmitEvent,
+} from "react";
+
+import { Link, useNavigate } from "react-router-dom";
+
 import axios from "axios";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { useAuth } from "../context/AuthContext"
+import { useAuth } from "../context/AuthContext";
 
 const api = import.meta.env.VITE_BACKEND_URL;
 
-export const VerifyTwoStepVerification = () => {
+export const VerifyEmailOtp = () => {
 
     const navigate = useNavigate();
-    const [searchParams] = useSearchParams();
+    const {refreshUser} = useAuth()
 
-
-    const { refreshUser } = useAuth()
-
-    const identifierFromUrl = searchParams.get("identifier");
-
-    const identifier =
-        identifierFromUrl ??
-        localStorage.getItem("problemforge:twoStepIdentifier");
-
-    const [code, setCode] = useState<string[]>(
-        ["", "", "", ""]
+    const email = localStorage.getItem(
+        "problemforge:verifyEmail"
     );
 
-    const [error, setError] = useState("");
+    const [code, setCode] = useState([
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+    ]);
 
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] =
+        useState(false);
 
-    const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
+    const [error, setError] =
+        useState("");
+
+    const inputRefs =
+        useRef<(HTMLInputElement | null)[]>(
+            []
+        );
 
     useEffect(() => {
 
-        if (!identifier) {
-            navigate("/login", {
-                replace: true,
-            });
+        if (!email) {
+
+            navigate(
+                "/create-account",
+                {
+                    replace: true,
+                }
+            );
+
         }
 
-    }, [identifier, navigate]);
+    }, [email, navigate]);
 
     const handleChange = (
         value: string,
         index: number
     ) => {
 
-        value = value.toUpperCase();
-
-        if (!/^[A-Z0-9]?$/.test(value)) {
+        if (!/^\d?$/.test(value)) {
             return;
         }
 
@@ -58,14 +73,21 @@ export const VerifyTwoStepVerification = () => {
 
         setCode(updatedCode);
 
-        if (value && index < 3) {
-            inputRefs.current[index + 1]?.focus();
+        if (
+            value &&
+            index < 5
+        ) {
+
+            inputRefs.current[
+                index + 1
+            ]?.focus();
+
         }
 
     };
 
     const handleKeyDown = (
-        e: React.KeyboardEvent<HTMLInputElement>,
+        e: KeyboardEvent<HTMLInputElement>,
         index: number
     ) => {
 
@@ -75,7 +97,9 @@ export const VerifyTwoStepVerification = () => {
             index > 0
         ) {
 
-            inputRefs.current[index - 1]?.focus();
+            inputRefs.current[
+                index - 1
+            ]?.focus();
 
         }
 
@@ -84,23 +108,27 @@ export const VerifyTwoStepVerification = () => {
             index > 0
         ) {
 
-            inputRefs.current[index - 1]?.focus();
+            inputRefs.current[
+                index - 1
+            ]?.focus();
 
         }
 
         if (
             e.key === "ArrowRight" &&
-            index < 3
+            index < 5
         ) {
 
-            inputRefs.current[index + 1]?.focus();
+            inputRefs.current[
+                index + 1
+            ]?.focus();
 
         }
 
     };
 
     const handlePaste = (
-        e: React.ClipboardEvent<HTMLInputElement>
+        e: ClipboardEvent<HTMLInputElement>
     ) => {
 
         e.preventDefault();
@@ -108,7 +136,7 @@ export const VerifyTwoStepVerification = () => {
         const pastedValue = e.clipboardData
             .getData("text")
             .replace(/\D/g, "")
-            .slice(0, 4);
+            .slice(0, 6);
 
         if (!pastedValue) {
             return;
@@ -118,23 +146,31 @@ export const VerifyTwoStepVerification = () => {
 
         pastedValue
             .split("")
-            .forEach((digit, index) => {
-                updatedCode[index] = digit;
-            });
+            .forEach(
+                (
+                    digit,
+                    index
+                ) => {
+
+                    updatedCode[index] =
+                        digit;
+
+                }
+            );
 
         setCode(updatedCode);
 
         inputRefs.current[
             Math.min(
                 pastedValue.length,
-                3
+                5
             )
         ]?.focus();
 
     };
 
     const handleSubmit = async (
-        e: React.FormEvent<HTMLFormElement>
+        e: SubmitEvent<HTMLFormElement>
     ) => {
 
         e.preventDefault();
@@ -143,52 +179,48 @@ export const VerifyTwoStepVerification = () => {
 
         const otp = code.join("");
 
-        if (otp.length !== 4) {
+        if (
+            otp.length !== 6
+        ) {
+
             return setError(
                 "Please enter the complete verification code."
             );
-        }
 
-        const payload = identifier?.includes("@")
-            ? {
-                email: identifier,
-                code: otp,
-            }
-            : {
-                username: identifier,
-                code: otp,
-            };
+        }
 
         try {
 
             setLoading(true);
 
             await axios.post(
-                `${api}/users/verify-two-step-verification`,
-                payload,
+                `${api}/users/verify-email`,
                 {
-                    withCredentials: true,
+                    email,
+                    otp
+                },{
+                    withCredentials: true
                 }
             );
 
             localStorage.removeItem(
-                "problemforge:twoStepIdentifier"
+                "problemforge:verifyEmail"
             );
 
             toast.success(
-                "Successfully logged in."
+                "Email verified successfully."
             );
 
-            await refreshUser();
+            await refreshUser()
 
-            navigate("/problems", {
-                replace: true,
-            });
+            navigate(
+                "/problems"
+            );
 
         } catch (error: any) {
 
             setError(
-                error.response?.data?.message ??
+                error?.response?.data?.message ??
                 "Verification failed."
             );
 
@@ -202,66 +234,75 @@ export const VerifyTwoStepVerification = () => {
 
     return (
 
-        <div className="min-h-screen bg-[#080808] flex items-center justify-center px-4 py-8">
+        <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#080808] px-4 py-8">
 
-            <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
+            <div className="grid w-full max-w-5xl grid-cols-1 gap-10 lg:grid-cols-2">
 
-                {/* LEFT SIDE */}
+                {/* Left Side */}
 
-                <div className="hidden lg:flex flex-col">
+                <div className="hidden flex-col justify-center lg:flex">
 
                     <h1 className="text-6xl font-black">
 
                         <span className="text-white">
+
                             Problem
+
                         </span>
 
                         <span className="text-cyan-400">
+
                             Forge
+
                         </span>
 
                     </h1>
 
-                    <p className="mt-6 text-white/60 text-lg max-w-md">
+                    <p className="mt-6 max-w-md text-lg leading-8 text-white/60">
 
-                        We've sent a verification code to your account.
-                        Enter it below to continue securely.
+                        Verify your email address to
+                        activate your account and
+                        continue your journey.
 
                     </p>
 
                 </div>
 
-                {/* RIGHT SIDE */}
+                {/* Right Side */}
 
-                <div className="flex justify-center">
+                <div className="flex items-center justify-center">
 
-                    <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#141414] p-6 lg:p-7 shadow-[0_20px_80px_rgba(0,0,0,.45)]">
+                    <div className="w-full max-w-md rounded-4xl border border-white/10 bg-[#111111]/90 p-6 backdrop-blur-xl sm:p-7">
 
-                        <div className="lg:hidden mb-8 text-center">
+                        <div className="mb-8 text-center lg:hidden">
 
                             <h1 className="text-4xl font-black">
 
                                 <span className="text-white">
+
                                     Problem
+
                                 </span>
 
                                 <span className="text-cyan-400">
+
                                     Forge
+
                                 </span>
 
                             </h1>
 
                         </div>
 
-                        <h2 className="text-2xl font-semibold text-white">
+                        <h2 className="text-3xl font-bold text-white">
 
-                            Two-Step Verification
+                            Verify Email
 
                         </h2>
 
                         <p className="mt-2 text-sm text-white/50">
 
-                            Enter the 4-character verification code sent to your account.
+                            Enter the 6-digit code sent to your email.
 
                         </p>
 
@@ -280,11 +321,9 @@ export const VerifyTwoStepVerification = () => {
                                             inputRefs.current[index] = element;
                                         }}
                                         type="text"
-                                        autoCapitalize="characters"
-                                        autoCorrect="off"
-                                        spellCheck={false}
-                                        maxLength={1}
+                                        inputMode="numeric"
                                         autoComplete="one-time-code"
+                                        maxLength={1}
                                         value={digit}
                                         onChange={(e) =>
                                             handleChange(
@@ -299,7 +338,7 @@ export const VerifyTwoStepVerification = () => {
                                             )
                                         }
                                         onPaste={handlePaste}
-                                        className="h-14 w-12 rounded-xl border border-white/10 bg-[#0F0F0F] text-center text-xl font-semibold text-white outline-none transition-all duration-300 focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/20 sm:h-16 sm:w-14 sm:text-2xl"
+                                        className="h-14 w-12 rounded-xl border border-white/10 bg-[#0F0F0F] text-center text-xl font-semibold text-white outline-none transition-all duration-300 placeholder:text-white/20 focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/20 sm:h-16 sm:w-14 sm:text-2xl"
                                     />
 
                                 ))}
@@ -319,7 +358,7 @@ export const VerifyTwoStepVerification = () => {
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="group relative mt-6 flex w-full items-center justify-center overflow-hidden rounded-xl border border-cyan-500/20 bg-cyan-500/10 py-3 text-sm font-semibold text-cyan-400 transition-all duration-300 hover:border-cyan-400/40 hover:bg-cyan-500/15 hover:text-cyan-300 hover:shadow-[0_0_25px_rgba(34,211,238,.18)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                                className="group relative mt-6 flex w-full items-center justify-center overflow-hidden rounded-xl border border-cyan-500/20 bg-cyan-500/10 py-3 font-medium text-cyan-400 transition-all duration-300 hover:border-cyan-400/40 hover:bg-cyan-500/15 hover:text-cyan-300 hover:shadow-[0_0_25px_rgba(34,211,238,.18)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
                             >
 
                                 <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-full" />
@@ -341,7 +380,7 @@ export const VerifyTwoStepVerification = () => {
 
                                     ) : (
 
-                                        "Verify"
+                                        "Verify Email"
 
                                     )}
 
@@ -349,40 +388,24 @@ export const VerifyTwoStepVerification = () => {
 
                             </button>
 
-
-                            <div className="mt-6 flex items-center justify-between">
-
-                                <button
-                                    type="button"
-                                    className="text-sm font-medium text-cyan-400 transition hover:text-cyan-300 disabled:cursor-not-allowed disabled:text-white/30"
-                                >
-                                    Resend Code
-                                </button>
-
-                                <span className="text-sm text-white/40">
-
-                                    Expires in 05:00
-
-                                </span>
-
-                            </div>
-
                             <div className="mt-8 border-t border-white/10 pt-6">
 
                                 <p className="text-center text-sm text-white/50">
 
-                                    Wrong account?
+                                    Wrong email?
 
                                     <Link
-                                        to="/login"
+                                        to="/create-account"
                                         onClick={() =>
                                             localStorage.removeItem(
-                                                "twoStepIdentifier"
+                                                "problemforge:verifyEmail"
                                             )
                                         }
                                         className="ml-2 font-semibold text-cyan-400 transition hover:text-cyan-300"
                                     >
-                                        Back to Login
+
+                                        Create another account
+
                                     </Link>
 
                                 </p>
@@ -401,15 +424,16 @@ export const VerifyTwoStepVerification = () => {
 
             <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
 
-                <div className="absolute left-1/2 top-0 h-[500px] w-[500px] -translate-x-1/2 rounded-full bg-cyan-500/10 blur-[140px]" />
+                <div className="absolute left-1/2 top-0 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-cyan-500/10 blur-[140px]" />
 
-                <div className="absolute -left-32 bottom-0 h-72 w-72 rounded-full bg-cyan-500/5 blur-[120px]" />
+                <div className="absolute -left-40 bottom-0 h-80 w-80 rounded-full bg-cyan-500/5 blur-[120px]" />
 
-                <div className="absolute -right-32 top-1/4 h-72 w-72 rounded-full bg-cyan-500/5 blur-[120px]" />
+                <div className="absolute -right-40 top-1/4 h-80 w-80 rounded-full bg-cyan-500/5 blur-[120px]" />
 
             </div>
 
         </div>
 
     );
+
 };

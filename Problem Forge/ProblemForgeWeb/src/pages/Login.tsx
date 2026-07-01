@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { FaGithub } from "react-icons/fa";
+import { useAuth } from "../context/AuthContext";
 
 interface LoginPayload {
     email?: string;
@@ -14,10 +15,25 @@ export const LoginPage = () => {
     const navigate = useNavigate();
     const location = useLocation();
 
+    const { refreshUser } = useAuth()
+
     const api = import.meta.env.VITE_BACKEND_URL
 
+    const previousRoute =
+        (location.state as { from?: string } | null)?.from;
+
+    const authRoutes = [
+        "/login",
+        "/register",
+        "/verify-two-step-verification",
+        "/forgot-password",
+        "/reset-password",
+    ];
+
     const redirectTo =
-        (location.state as { from?: string } | null)?.from || "/";
+        previousRoute && !authRoutes.includes(previousRoute)
+            ? previousRoute
+            : "/problems";
 
     const [formData, setFormData] = useState({
         identifier: "",
@@ -59,7 +75,7 @@ export const LoginPage = () => {
 
     const loginWithGithub = () => {
         window.location.href =
-            `${import.meta.env.VITE_BACKEND_URL}/oauth/github-login`;
+            `${api}/oauth/github-login`;
     };
 
     const handleSubmit = async (
@@ -78,16 +94,28 @@ export const LoginPage = () => {
         try {
             setLoading(true);
 
-            localStorage.setItem(
-                "problemforge:twoStepIdentifier",
-                formData.identifier
-            );
-            await axios.post(`${import.meta.env.VITE_BACKEND_URL}/users/login`, payload);
+            const response = await axios.post(`${api}/users/login`, payload,{
+                withCredentials: true
+            });
+            if (response.data.data.twoFactorRequired) {
+
+                localStorage.setItem(
+                    "problemforge:twoStepIdentifier",
+                    response.data.data.identifier
+                );
+
+                navigate("/verify-two-step-verification");
+
+                return;
+            }
+
+            await refreshUser();
+
             navigate(redirectTo, {
                 replace: true,
             });
 
-            
+
 
         } catch (error: any) {
 

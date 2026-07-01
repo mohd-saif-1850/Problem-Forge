@@ -237,8 +237,17 @@ const login = async (req: Request, res: Response) => {
     if (user.twoStepVerification) {
         await sendTwoStepVerification(user)
 
-        return res.status(200).redirect(`${process.env.WEB_URL}/verify-two-step-verification`)
-        
+        return res.status(200).json(
+            new apiResponse(
+                200,
+                "Please confirm your account",
+                {
+                    twoFactorRequired: true,
+                    identifier: email ?? username,
+                }
+            )
+        );
+
     }
 
     await handleDeviceLogin(
@@ -304,8 +313,8 @@ const verifyTwoStepVerification = async (
 
     const user = await User.findOne({
         $or: [
-            {email},
-            {username}
+            { email },
+            { username }
         ]
     })
 
@@ -1468,8 +1477,8 @@ const toggleShowReputation = async (req: AuthenticatedRequest, res: Response) =>
         }
     ).select("showReputation");
 
-    if(!updatedUser){
-        throw new apiError(500,"Server failed to update")
+    if (!updatedUser) {
+        throw new apiError(500, "Server failed to update")
     }
 
     return res.status(200).json(
